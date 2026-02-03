@@ -1,0 +1,17 @@
+[project]
+name = "sos-g"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "nicegui>=3.6.1",
+    "polars>=1.37.1",
+    "pyodbc>=5.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.1.0",
+    "ruff>=0.14.14",
+]
