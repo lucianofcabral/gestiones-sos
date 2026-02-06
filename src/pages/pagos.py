@@ -136,6 +136,133 @@ def tabla_pagos():
         )
     )
 
+    # Función para mostrar el detalle del pago
+    def mostrar_detalle_pago():
+        """Muestra un dialog con los detalles del pago seleccionado"""
+        if not table.selected or len(table.selected) == 0:
+            return
+
+        pago = table.selected[0]
+        print("Pago seleccionado:", pago)
+
+        with (
+            ui.dialog() as dialog,
+            ui.card().classes("w-full max-w-1xl"),
+        ):
+            with ui.row().classes("w-full items-center"):
+                with ui.column().classes("w-full gap-2 p-1"):
+                    with ui.row().classes("w-full items-center"):
+                        ui.space()
+                        ui.label(
+                            f"Gestión #{pago['ngestion']}"
+                        ).classes("text-h5")
+                        ui.space()
+                    with ui.row().classes("w-full items-center"):
+                        ui.space()
+                        ui.label(
+                            f"Póliza: {pago['poliza']}"
+                        ).classes("text-h5")
+                        ui.space()
+                    with ui.row().classes("w-full items-center"):
+                        ui.space()
+                        ui.label(
+                            f"Dominio: {pago['dominio']}"
+                        ).classes("text-h5")
+                        ui.space()
+
+            ui.separator()
+
+            with ui.column().classes("w-full gap-2 p-2"):
+                # Información principal
+                with ui.grid(columns=1).classes("w-full gap-1"):
+                    from datetime import date
+
+                    ui.date_input(
+                        label="Fecha",
+                        value=pago.get("fecha", date.today()),
+                    ).props("format=YYYY-MM-DD")
+
+                    ui.select(
+                        options=database.obtener_formaspago(),
+                        value=pago.get("formapago", ""),
+                        label="Forma de Pago",
+                    )
+
+                    ui.select(
+                        options=database.obtener_agentes(),
+                        value=pago.get("pagador", ""),
+                        label="Pagador",
+                    )
+
+                    ui.select(
+                        options=database.obtener_agentes(),
+                        value=pago.get("destinatario", ""),
+                        label="Destinatario",
+                    )
+
+                    ui.number(
+                        label="Importe",
+                        value=pago.get("importe", 0),
+                        prefix="$ ",
+                        min=1,
+                        format="%.2f",
+                    )
+
+                    if pago.get("formapago") == "Nota De Credito":
+                        with ui.row().classes(
+                            "w-full items-center"
+                        ):
+                            es_nota_no_pasada = (
+                                pago.get(
+                                    "es_nota_credito_no_pasada"
+                                )
+                                == 1
+                            )
+                            ui.space()
+                            ui.label(
+                                f"Es Nota de Crédito{
+                                    ' NO'
+                                    if es_nota_no_pasada
+                                    else ' '
+                                } PASADA",
+                            ).classes(
+                                "text-h6 text-red-600 font-bold"
+                                # "color=primary"
+                                if not es_nota_no_pasada
+                                else "text-h6"
+                            )
+
+                            ui.space()
+
+                ui.separator()
+
+                # Acciones
+                with ui.row().classes("w-full justify-end gap-2"):
+                    ui.space()
+                    ui.button(
+                        "Editar",
+                        icon="edit",
+                        on_click=lambda: ui.notify(
+                            "Función de editar próximamente"
+                        ),
+                    ).props("color=primary")
+                    ui.button(
+                        "Eliminar",
+                        icon="delete",
+                        on_click=lambda: ui.notify(
+                            "Función de eliminar próximamente"
+                        ),
+                    ).props("color=negative")
+                    ui.button(
+                        "Cerrar", on_click=dialog.close
+                    ).props("outline")
+                    ui.space()
+
+        dialog.open()
+
+    # EVENTO DE SELECCIÓN - Usando el mismo método que funciona en gestiones.py
+    table.on("selection", lambda: mostrar_detalle_pago())
+
     # Color condicional para columna activa
     table.add_slot(
         "body-cell-es_nota_credito_no_pasada",
@@ -283,13 +410,13 @@ def page_pagos():
                     busqueda_input = (
                         ui.input(
                             "Búsqueda",
-                            placeholder="Buscar por nombre o proveedor...",
+                            placeholder="Buscar por texto...",
                         )
                         .classes("w-full")
                         .on_value_change(
                             lambda e: setattr(
                                 filtros_pagos,
-                                "texcto_busqueda",
+                                "texto_busqueda",
                                 e.value,
                             )
                             or aplicar_filtros()

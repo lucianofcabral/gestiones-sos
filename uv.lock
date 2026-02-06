@@ -1473,6 +1473,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "nicegui" },
     { name = "polars" },
+    { name = "pydantic" },
     { name = "pyodbc" },
 ]
 
@@ -1486,6 +1487,7 @@ dev = [
 requires-dist = [
     { name = "nicegui", specifier = ">=3.6.1" },
     { name = "polars", specifier = ">=1.37.1" },
+    { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pyodbc", specifier = ">=5.3.0" },
 ]
 

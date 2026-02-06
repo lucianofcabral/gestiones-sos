@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS facturas (
     nrofactura TEXT NOT NULL,
     fechaemitida DATE,
     periodo INTEGER NOT NULL,
-    importe REAL DEFAULT (0.0),
+    importe REAL DEFAULT(0.0),
     UNIQUE (nrofactura, periodo)
 );
 --
@@ -40,23 +40,23 @@ CREATE TABLE IF NOT EXISTS aux_facturas (
 -- gestiones definition
 CREATE TABLE IF NOT EXISTS gestiones (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    ngestion INTEGER DEFAULT (0) NOT NULL,
+    ngestion INTEGER DEFAULT(0) NOT NULL,
     fecha DATE,
     cliente TEXT,
     dominio TEXT,
     poliza TEXT NOT NULL,
     tipo TEXT NOT NULL,
     motivo TEXT,
-    ncaso INTEGER DEFAULT (0) NOT NULL,
+    ncaso INTEGER DEFAULT(0) NOT NULL,
     usuariocarga TEXT,
     usuariorespuesta TEXT,
-    estado INTEGER DEFAULT (0) NOT NULL,
-    itr INTEGER DEFAULT (0) NOT NULL,
-    totalfactura REAL DEFAULT (0.0) NOT NULL,
-    terminado INTEGER DEFAULT (0) NOT NULL,
+    estado INTEGER DEFAULT(0) NOT NULL,
+    itr INTEGER DEFAULT(0) NOT NULL,
+    totalfactura REAL DEFAULT(0.0) NOT NULL,
+    terminado INTEGER DEFAULT(0) NOT NULL,
     fechaterminado DATE,
     obs TEXT,
-    activa INTEGER DEFAULT (0) NOT NULL
+    activa INTEGER DEFAULT(0) NOT NULL
 );
 --
 CREATE TABLE IF NOT EXISTS aux_gestiones (
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS pagos (
     pagador_id INTEGER NOT NULL,
     destinatario_id INTEGER NOT NULL,
     formapago_id INTEGER NOT NULL,
-    importe REAL NOT NULL,
+    importe REAL NOT NULL CHECK (importe > 0),
     FOREIGN KEY (gestion_id) REFERENCES gestiones (id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (pagador_id) REFERENCES agentes (id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (destinatario_id) REFERENCES agentes (id) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS notas (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     pago_id INTEGER NOT NULL,
     factura_id INTEGER NULL,
-    pasada INTEGER DEFAULT (0),
+    pasada INTEGER DEFAULT(0),
     FOREIGN KEY (pago_id) REFERENCES pagos (id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (factura_id) REFERENCES facturas (id) ON DELETE CASCADE ON UPDATE CASCADE,
     UNIQUE (pago_id)

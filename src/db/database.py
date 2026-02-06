@@ -1,5 +1,7 @@
+import os
 import sqlite3
 from pathlib import Path
+import datetime
 from src.commons import SQL_CREATE_FILE, DB_PATH, ACCESS_DB_PATH
 import pyodbc
 
@@ -38,18 +40,38 @@ class SQLiteDB:
             def get_polars_from_table(
                 tabla: str,
             ) -> pl.DataFrame:
-                query: str = f"Select * from {tabla} ;"
-                with pyodbc.connect(conn_str) as cn:
-                    cur = cn.cursor()
-                    cur.execute(query)
-                    rows = cur.execute(query).fetchall()
-                    cols = [
-                        column[0] for column in cur.description
-                    ]
-                    data: list[dict] = [
-                        dict(zip(cols, row)) for row in rows
-                    ]
-                    dataframe: pl.DataFrame = pl.from_dicts(data)
+                if os.name == "nt":
+                    query: str = f"Select * from {tabla} ;"
+                    with pyodbc.connect(conn_str) as cn:
+                        cur = cn.cursor()
+                        cur.execute(query)
+                        rows = cur.execute(query).fetchall()
+                        cols = [
+                            column[0]
+                            for column in cur.description
+                        ]
+                        data: list[dict] = [
+                            dict(zip(cols, row)) for row in rows
+                        ]
+                        dataframe: pl.DataFrame = pl.from_dicts(
+                            data
+                        )
+                else:
+                    import subprocess
+                    from io import StringIO
+
+                    result = subprocess.run(
+                        ["mdb-export", ACCESS_DB_PATH, tabla],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
+
+                    # Leer CSV directamente con Polars
+                    dataframe: pl.DataFrame = pl.read_csv(
+                        StringIO(result.stdout)
+                    )
+
                 return dataframe
 
             facturas = get_polars_from_table("Facturas")
@@ -134,13 +156,16 @@ class SQLiteDB:
                 [
                     "id",
                     "nrofactura",
-                    pl.col("fechaemitida").dt.strftime(
-                        "%Y-%m-%d"
-                    ),
-                    pl.col("periodo").dt.strftime("%Y%m"),
+                    pl.col("fechaemitida")
+                    .str.to_date(format="%m/%d/%y %H:%M:%S")
+                    .dt.strftime("%Y-%m-%d"),
+                    pl.col("periodo")
+                    .str.to_date(format="%m/%d/%y %H:%M:%S")
+                    .dt.strftime("%Y%m"),
                     pl.col("importe").cast(pl.Float32),
                 ]
             )
+
             for row in facturas_data.to_dicts():
                 self.cursor.execute(
                     "Insert into facturas (nrofactura,fechaemitida,periodo,importe) values (:nrofactura,:fechaemitida,:periodo,:importe);",
@@ -166,18 +191,22 @@ class SQLiteDB:
                 [
                     gestiones.with_columns(
                         [
-                            pl.col("Fecha").dt.strftime(
-                                "%Y-%m-%d"
-                            ),
+                            pl.col("Fecha")
+                            .str.to_date(
+                                format="%m/%d/%y %H:%M:%S"
+                            )
+                            .dt.strftime("%Y-%m-%d"),
                             pl.col("Poliza")
                             .cast(pl.Int64)
                             .cast(pl.String),
                             pl.col("TotalFactura").cast(
                                 pl.Float32
                             ),
-                            pl.col("FechaTerminado").dt.strftime(
-                                "%Y-%m-%d"
-                            ),
+                            pl.col("FechaTerminado")
+                            .str.to_date(
+                                format="%m/%d/%y %H:%M:%S"
+                            )
+                            .dt.strftime("%Y-%m-%d"),
                             pl.col("Activa").cast(pl.Int64),
                             pl.col("Terminado").cast(pl.Int64),
                             pl.lit(None)
@@ -190,9 +219,11 @@ class SQLiteDB:
                             pl.lit(0)
                             .alias("NGestion")
                             .cast(pl.Int64),
-                            pl.col("Fecha").dt.strftime(
-                                "%Y-%m-%d"
-                            ),
+                            pl.col("Fecha")
+                            .str.to_date(
+                                format="%m/%d/%y %H:%M:%S"
+                            )
+                            .dt.strftime("%Y-%m-%d"),
                             pl.lit("")
                             .alias("Cliente")
                             .cast(pl.String),
@@ -229,6 +260,9 @@ class SQLiteDB:
                             .cast(pl.Int64)
                             .alias("Terminado"),
                             pl.col("Fecha")
+                            .str.to_date(
+                                format="%m/%d/%y %H:%M:%S"
+                            )
                             .dt.strftime("%Y-%m-%d")
                             .alias("FechaTerminado"),
                             "Obs",
@@ -274,9 +308,11 @@ class SQLiteDB:
                     (
                         pagos.filter(pl.col("NGestion") > 0)
                         .with_columns(
-                            pl.col("Fecha").dt.strftime(
-                                "%Y-%m-%d"
+                            pl.col("Fecha")
+                            .str.to_date(
+                                format="%m/%d/%y %H:%M:%S"
                             )
+                            .dt.strftime("%Y-%m-%d")
                         )
                         .with_columns(
                             pl.lit(0)
@@ -295,7 +331,9 @@ class SQLiteDB:
                         left_on="id",
                         right_on="IdPago",
                     ).with_columns(
-                        pl.col("Fecha").dt.strftime("%Y-%m-%d")
+                        pl.col("Fecha")
+                        .str.to_date(format="%m/%d/%y %H:%M:%S")
+                        .dt.strftime("%Y-%m-%d")
                     ),
                 ]
             )
@@ -311,7 +349,7 @@ class SQLiteDB:
                 .with_columns(
                     [
                         pl.col("formadepago").fill_null(1),
-                        pl.col("importe").cast(pl.Float64),
+                        pl.col("importe").cast(pl.Float64).abs(),
                     ]
                 )
             )
@@ -379,7 +417,9 @@ class SQLiteDB:
 
             # Notas
             notas_data = notas.with_columns(
-                pl.col("FechaPasada").dt.strftime("%Y-%m-%d")
+                pl.col("FechaPasada")
+                .str.to_date(format="%m/%d/%y %H:%M:%S")
+                .dt.strftime("%Y-%m-%d")
             ).sort("IdPago")
             notas_data = notas_data.select(
                 [
@@ -396,13 +436,12 @@ class SQLiteDB:
                         "Select id_nuevo from aux_pagos where id_viejo = :id_viejo;",
                         {"id_viejo": row["idpago"]},
                     ).fetchone()[0]
-                    factid = self.cursor.execute(
-                        "Select id_nuevo from aux_facturas where id_viejo = :id_viejo;",
-                        {"id_viejo": row["idfactura"]},
-                    ).fetchone()
-                    if isinstance(factid, tuple):
-                        factid = factid[0]
-                    else:
+                    try:
+                        factid = self.cursor.execute(
+                            "Select id_nuevo from aux_facturas where id_viejo = :id_viejo;",
+                            {"id_viejo": row["idfactura"]},
+                        ).fetchone()[0]
+                    except Exception:
                         factid = None
 
                     self.cursor.execute(
@@ -419,7 +458,7 @@ class SQLiteDB:
                     )
                     continue
 
-        self.connection.commit()
+        self.conn.commit()
 
     def obtener_tipos(self) -> list[str]:
         self.cursor.execute(
@@ -611,3 +650,171 @@ class SQLiteDB:
         self.cursor.execute(query, params)
         rows = self.cursor.fetchall()
         return [dict(row) for row in rows]
+
+    def obtener_pago_por_id(self, pago_id: int) -> dict:
+        """Obtiene un pago específico por ID"""
+        try:
+            query = """
+            SELECT 
+                p.id,
+                p.fecha,
+                a1.agente as pagador,  -- Cambié 'nombre' por 'agente'
+                a2.agente as destinatario,  -- Cambié 'nombre' por 'agente' 
+                fp.formapago as formapago,  -- Cambié 'nombre' por 'formapago'
+                p.importe,
+                g.tipo,
+                g.ngestion,
+                g.dominio,
+                g.poliza,
+                g.cliente,
+                CASE WHEN EXISTS(
+                    SELECT 1 FROM notas n WHERE n.pago_id = p.id AND n.pasada = 0
+                ) THEN 1 ELSE 0 END as es_nota_credito_no_pasada
+            FROM pagos p
+            LEFT JOIN gestiones g ON p.gestion_id = g.id
+            LEFT JOIN agentes a1 ON p.pagador_id = a1.id
+            LEFT JOIN agentes a2 ON p.destinatario_id = a2.id
+            LEFT JOIN formaspago fp ON p.formapago_id = fp.id
+            WHERE p.id = :pago_id
+            """
+
+            result = self.cursor.execute(
+                query, {"pago_id": pago_id}
+            ).fetchone()
+            if result:
+                return dict(result)
+            return {}
+        except Exception as e:
+            print(f"Error obteniendo pago: {e}")
+            return {}
+
+    def actualizar_pago(
+        self,
+        pago_id: int,
+        fecha: str | None = None,
+        pagador: str | None = None,
+        destinatario: str | None = None,
+        formapago: str | None = None,
+        importe: float | None = None,
+    ) -> bool:
+        """Actualiza un pago en la base de datos"""
+        try:
+            # Construir la consulta dinámicamente
+            campos_update = []
+            valores = {"pago_id": pago_id}
+
+            if fecha is not None:
+                # Validar y formatear fecha
+                try:
+                    fecha_formateada = (
+                        datetime.datetime.strptime(
+                            fecha, "%Y-%m-%d"
+                        )
+                        .date()
+                        .isoformat()
+                    )
+                    campos_update.append("fecha = :fecha")
+                    valores["fecha"] = fecha_formateada
+                except ValueError:
+                    print(f"Formato de fecha inválido: {fecha}")
+                    return False
+
+            if pagador is not None:
+                pagador_id = self.obtener_agente_id_por_nombre(
+                    pagador
+                )
+                if pagador_id is not None:
+                    campos_update.append(
+                        "pagador_id = :pagador_id"
+                    )
+                    valores["pagador_id"] = pagador_id
+                else:
+                    print(f"Pagador no encontrado: {pagador}")
+                    return False
+
+            if destinatario is not None:
+                destinatario_id = (
+                    self.obtener_agente_id_por_nombre(
+                        destinatario
+                    )
+                )
+                if destinatario_id is not None:
+                    campos_update.append(
+                        "destinatario_id = :destinatario_id"
+                    )
+                    valores["destinatario_id"] = destinatario_id
+                else:
+                    print(
+                        f"Destinatario no encontrado: {destinatario}"
+                    )
+                    return False
+
+            if formapago is not None:
+                formapago_id = (
+                    self.obtener_formapago_id_por_nombre(
+                        formapago
+                    )
+                )
+                if formapago_id is not None:
+                    campos_update.append(
+                        "formapago_id = :formapago_id"
+                    )
+                    valores["formapago_id"] = formapago_id
+                else:
+                    print(
+                        f"Forma de pago no encontrada: {formapago}"
+                    )
+                    return False
+
+            if importe is not None:
+                campos_update.append("importe = :importe")
+                valores["importe"] = float(importe)
+
+            if not campos_update:
+                print("No hay campos para actualizar")
+                return False
+
+            query = f"""
+            UPDATE pagos 
+            SET {", ".join(campos_update)}
+            WHERE id = :pago_id
+            """
+
+            print(f"Ejecutando query: {query}")
+            print(f"Con valores: {valores}")
+
+            self.cursor.execute(query, valores)
+            self.conn.commit()
+            return True
+
+        except Exception as e:
+            print(f"Error actualizando pago: {e}")
+            return False
+
+    def obtener_agente_id_por_nombre(
+        self, nombre: str
+    ) -> int | None:
+        """Obtiene el ID de un agente por su nombre"""
+        try:
+            result = self.cursor.execute(
+                "SELECT id FROM agentes WHERE agente = :agente",
+                {"agente": nombre},
+            ).fetchone()
+            return result[0] if result else None
+        except Exception as e:
+            print(f"Error obteniendo agente: {e}")
+            return None
+
+    def obtener_formapago_id_por_nombre(
+        self, nombre: str
+    ) -> int | None:
+        """Obtiene el ID de una forma de pago por su nombre"""
+        try:
+            result = self.cursor.execute(
+                "SELECT id FROM formaspago WHERE formapago = :formapago",
+                {"formapago": nombre},
+            ).fetchone()
+            return result[0] if result else None
+        except Exception as e:
+            print(f"Error obteniendo forma de pago: {e}")
+            return None
