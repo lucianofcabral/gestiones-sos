@@ -1,14 +1,15 @@
 """Página de gestión de pagos"""
 
 from nicegui import ui
-from src.db.database import SQLiteDB
+from src.db.connection import get_database
 from src.state import filtros_pagos
 from src.components.navbar import crear_navbar
+from src.components.dialog_pago import crear_dialog_pago
 
 
-def tabla_pagos():
+def tabla_pagos(refresh_callback=None):
     """Tabla de gestiones con selección"""
-    database = SQLiteDB()
+    database = get_database()
     pagos: list[dict[str, any]] = database.filtrar_pagos(
         texto_busqueda=filtros_pagos.texto_busqueda,
         pagador=filtros_pagos.pagador,
@@ -111,7 +112,7 @@ def tabla_pagos():
         },
         {
             "name": "es_nota_credito_no_pasada",
-            "label": "NO Pasada",
+            "label": "Nota de crédito NO pasada",
             "field": "es_nota_credito_no_pasada",
             "align": "left",
             "sortable": True,
@@ -136,131 +137,23 @@ def tabla_pagos():
         )
     )
 
-    # Función para mostrar el detalle del pago
+    # Función para mostrar el detalle del pago usando componente modularizado
     def mostrar_detalle_pago():
         """Muestra un dialog con los detalles del pago seleccionado"""
         if not table.selected or len(table.selected) == 0:
             return
 
         pago = table.selected[0]
-        print("Pago seleccionado:", pago)
+        pago_id = pago["id"]
 
-        with (
-            ui.dialog() as dialog,
-            ui.card().classes("w-full max-w-1xl"),
-        ):
-            with ui.row().classes("w-full items-center"):
-                with ui.column().classes("w-full gap-2 p-1"):
-                    with ui.row().classes("w-full items-center"):
-                        ui.space()
-                        ui.label(
-                            f"Gestión #{pago['ngestion']}"
-                        ).classes("text-h5")
-                        ui.space()
-                    with ui.row().classes("w-full items-center"):
-                        ui.space()
-                        ui.label(
-                            f"Póliza: {pago['poliza']}"
-                        ).classes("text-h5")
-                        ui.space()
-                    with ui.row().classes("w-full items-center"):
-                        ui.space()
-                        ui.label(
-                            f"Dominio: {pago['dominio']}"
-                        ).classes("text-h5")
-                        ui.space()
+        # Crear y abrir el dialog usando el componente modularizado
+        dialog = crear_dialog_pago(
+            pago_id, refresh_callback=refresh_callback
+        )
+        if dialog:
+            dialog.open()
 
-            ui.separator()
-
-            with ui.column().classes("w-full gap-2 p-2"):
-                # Información principal
-                with ui.grid(columns=1).classes("w-full gap-1"):
-                    from datetime import date
-
-                    ui.date_input(
-                        label="Fecha",
-                        value=pago.get("fecha", date.today()),
-                    ).props("format=YYYY-MM-DD")
-
-                    ui.select(
-                        options=database.obtener_formaspago(),
-                        value=pago.get("formapago", ""),
-                        label="Forma de Pago",
-                    )
-
-                    ui.select(
-                        options=database.obtener_agentes(),
-                        value=pago.get("pagador", ""),
-                        label="Pagador",
-                    )
-
-                    ui.select(
-                        options=database.obtener_agentes(),
-                        value=pago.get("destinatario", ""),
-                        label="Destinatario",
-                    )
-
-                    ui.number(
-                        label="Importe",
-                        value=pago.get("importe", 0),
-                        prefix="$ ",
-                        min=1,
-                        format="%.2f",
-                    )
-
-                    if pago.get("formapago") == "Nota De Credito":
-                        with ui.row().classes(
-                            "w-full items-center"
-                        ):
-                            es_nota_no_pasada = (
-                                pago.get(
-                                    "es_nota_credito_no_pasada"
-                                )
-                                == 1
-                            )
-                            ui.space()
-                            ui.label(
-                                f"Es Nota de Crédito{
-                                    ' NO'
-                                    if es_nota_no_pasada
-                                    else ' '
-                                } PASADA",
-                            ).classes(
-                                "text-h6 text-red-600 font-bold"
-                                # "color=primary"
-                                if not es_nota_no_pasada
-                                else "text-h6"
-                            )
-
-                            ui.space()
-
-                ui.separator()
-
-                # Acciones
-                with ui.row().classes("w-full justify-end gap-2"):
-                    ui.space()
-                    ui.button(
-                        "Editar",
-                        icon="edit",
-                        on_click=lambda: ui.notify(
-                            "Función de editar próximamente"
-                        ),
-                    ).props("color=primary")
-                    ui.button(
-                        "Eliminar",
-                        icon="delete",
-                        on_click=lambda: ui.notify(
-                            "Función de eliminar próximamente"
-                        ),
-                    ).props("color=negative")
-                    ui.button(
-                        "Cerrar", on_click=dialog.close
-                    ).props("outline")
-                    ui.space()
-
-        dialog.open()
-
-    # EVENTO DE SELECCIÓN - Usando el mismo método que funciona en gestiones.py
+    # EVENTO DE SELECCIÓN
     table.on("selection", lambda: mostrar_detalle_pago())
 
     # Color condicional para columna activa
@@ -268,8 +161,10 @@ def tabla_pagos():
         "body-cell-es_nota_credito_no_pasada",
         """
     <q-td :props="props">
-        <q-badge :color="props.row.es_nota_credito_no_pasada == 1 || props.row.es_nota_credito_no_pasada == '1' || props.row.es_nota_credito_no_pasada == true ? 'red' : 'green'">
-            {{ props.row.es_nota_credito_no_pasada == 1 || props.row.es_nota_credito_no_pasada == '1' || props.row.es_nota_credito_no_pasada == true ? 'SI' : '' }}
+        <q-badge 
+            v-if="props.row.es_nota_credito_no_pasada == 1 || props.row.es_nota_credito_no_pasada == '1' || props.row.es_nota_credito_no_pasada == true"
+            color="red">
+            SI
         </q-badge>
     </q-td>
     """,
@@ -284,6 +179,10 @@ def page_pagos():
 
     def aplicar_filtros():
         """Aplica los filtros y actualiza la tabla"""
+        tabla_pagos_refreshable.refresh()
+
+    def refresh_tabla():
+        """Callback para refrescar la tabla desde dentro de tabla_pagos"""
         tabla_pagos_refreshable.refresh()
 
     def limpiar_filtros():
@@ -316,8 +215,9 @@ def page_pagos():
             type="positive",
         )
 
+    # Configurar colores del tema - Paleta Pagos (Violeta/Naranja)
     ui.colors(
-        primary="#dc2656", secondary="#ea580c", accent="#fbbf24"
+        primary="#7e57c2", secondary="#ff7043", accent="#ffa726"
     )
     dark = ui.dark_mode(value=True)
     crear_navbar(dark)
@@ -337,7 +237,7 @@ def page_pagos():
                 # Pagadores
                 with ui.column().classes("w-48"):
                     global pagador_select
-                    database = SQLiteDB()
+                    database = get_database()
                     pagadores = [
                         "all"
                     ] + database.obtener_agentes()
@@ -452,7 +352,7 @@ def page_pagos():
         # ====================
         # TABLA
         # ====================
-        tabla_pagos_refreshable()
+        tabla_pagos_refreshable(refresh_callback=refresh_tabla)
 
     with ui.footer().classes("bg-transparent"):
         ui.label(

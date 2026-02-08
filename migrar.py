@@ -1,6 +1,6 @@
-from src.db.database import SQLiteDB
+from src.db.connection import get_database
 
 
-db = SQLiteDB()
+db = get_database()
 
 db.migrar()

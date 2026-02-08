@@ -1,14 +1,14 @@
 """Página principal de Gestiones"""
 
 from nicegui import ui
-from src.db.database import SQLiteDB
+from src.db.connection import get_database
 from src.state import filtros_gestiones
 from src.components.navbar import crear_navbar
 
 
 def tabla_gestiones():
     """Tabla de gestiones con selección"""
-    db = SQLiteDB()
+    db = get_database()
     gestiones: list[dict[str, any]] = db.filter_gestiones(
         texto_busqueda=filtros_gestiones.texto_busqueda,
         tipo=filtros_gestiones.tipo,
@@ -186,12 +186,12 @@ def page_gestiones():
             type="positive",
         )
 
-    # Configurar colores del tema
+    # Configurar colores del tema - Paleta Gestiones (Azul/Verde)
     ui.colors(
-        primary="#dc2656", secondary="#ea580c", accent="#fbbf24"
+        primary="#1e88e5", secondary="#26a69a", accent="#66bb6a"
     )
 
-    db = SQLiteDB()
+    db = get_database()
     dark = ui.dark_mode(value=True)
     crear_navbar(dark)
 

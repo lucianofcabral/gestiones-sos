@@ -279,6 +279,8 @@ class SQLiteDB:
                     pl.col(col).alias(col.lower())
                     for col in gestiones_concatenado.columns
                 ]
+            ).with_columns(
+                pl.col("dominio").str.replace_all(" ", "", True)
             )
             cols = [
                 c
@@ -644,9 +646,6 @@ class SQLiteDB:
 
         query += " ORDER BY p.fecha DESC"
 
-        print("Executing query:", query)
-        print("With params:", params)
-
         self.cursor.execute(query, params)
         rows = self.cursor.fetchall()
         return [dict(row) for row in rows]
@@ -780,15 +779,25 @@ class SQLiteDB:
             WHERE id = :pago_id
             """
 
-            print(f"Ejecutando query: {query}")
-            print(f"Con valores: {valores}")
-
             self.cursor.execute(query, valores)
             self.conn.commit()
             return True
 
         except Exception as e:
             print(f"Error actualizando pago: {e}")
+            return False
+
+    def eliminar_pago(self, pago_id: int) -> bool:
+        """Elimina un pago de la base de datos"""
+        try:
+            self.cursor.execute(
+                "DELETE FROM pagos WHERE id = :pago_id",
+                {"pago_id": pago_id},
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error eliminando pago: {e}")
             return False
 
     def obtener_agente_id_por_nombre(

@@ -7,7 +7,7 @@ def crear_navbar(dark_mode):
     """Crea el header con navegación y controles"""
     with ui.header().classes("items-center justify-between px-6"):
         # Logo/Título
-        ui.label("🆘 Gestiones SOS").classes(
+        ui.label("🆘 Control de Gestiones SOS").classes(
             "text-h5 font-bold cursor-pointer"
         ).on("click", lambda: ui.navigate.to("/"))
 
