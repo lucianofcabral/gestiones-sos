@@ -4,9 +4,10 @@ from nicegui import ui
 from src.db.connection import get_database
 from src.state import filtros_gestiones
 from src.components.navbar import crear_navbar
+from src.components.dialog_gestion import crear_dialog_gestion
 
 
-def tabla_gestiones():
+def tabla_gestiones(refresh_callback=None):
     """Tabla de gestiones con selección"""
     db = get_database()
     gestiones: list[dict[str, any]] = db.filter_gestiones(
@@ -157,8 +158,22 @@ def tabla_gestiones():
     """,
     )
 
-    # Actualizar selección
-    def open_gestion(): ...
+    # Función para mostrar el detalle de la gestión
+    def open_gestion():
+        """Abre el dialog de edición de la gestión seleccionada"""
+        if not table.selected or len(table.selected) == 0:
+            return
+
+        gestion = table.selected[0]
+        gestion_id = gestion["id"]
+
+        # Crear y abrir el dialog usando el componente modularizado
+        dialog = crear_dialog_gestion(
+            gestion_id=gestion_id,
+            refresh_callback=refresh_callback,
+        )
+        if dialog:
+            dialog.open()
 
     table.on("selection", lambda: open_gestion())
 
@@ -168,6 +183,10 @@ def page_gestiones():
     """Página principal de gestiones"""
     # Aplicar decorador ui.refreshable en scope local
     tabla_gestiones_refreshable = ui.refreshable(tabla_gestiones)
+
+    def refresh_tabla():
+        """Callback para refrescar la tabla desde dentro de tabla_gestiones"""
+        tabla_gestiones_refreshable.refresh()
 
     def aplicar_filtros():
         """Aplica los filtros y actualiza la tabla"""
@@ -203,11 +222,27 @@ def page_gestiones():
         # ====================
         with ui.card().classes("w-full"):
             # Primera fila de filtros
-            with ui.row().classes("w-full gap-4"):
-                ui.label("🔍 Filtros").classes(
-                    "text-h6 q-mb-md w-70"
-                )
+            with ui.row().classes("w-full gap-4 items-center"):
+                ui.label("🔍 Filtros").classes("text-h6 q-mb-md")
 
+                ui.space()
+
+                # Botón para crear nueva gestión
+                def crear_nueva_gestion():
+                    dialog = crear_dialog_gestion(
+                        gestion_id=None,
+                        refresh_callback=refresh_tabla,
+                    )
+                    if dialog:
+                        dialog.open()
+
+                ui.button(
+                    "Nueva Gestión",
+                    icon="add",
+                    on_click=crear_nueva_gestion,
+                ).props("color=primary")
+
+            with ui.row().classes("w-full gap-4 mt-2"):
                 # Tipo
                 with ui.column().classes("w-48"):
                     global tipo_select
@@ -382,7 +417,9 @@ def page_gestiones():
         # ====================
         # TABLA
         # ====================
-        tabla_gestiones_refreshable()
+        tabla_gestiones_refreshable(
+            refresh_callback=refresh_tabla
+        )
 
     with ui.footer().classes("bg-transparent"):
         ui.label(

@@ -26,11 +26,10 @@ CREATE TABLE IF NOT EXISTS aux_formaspago (
 -- facturas
 CREATE TABLE IF NOT EXISTS facturas (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    nrofactura TEXT NOT NULL,
     fechaemitida DATE,
     periodo INTEGER NOT NULL,
     importe REAL DEFAULT(0.0),
-    UNIQUE (nrofactura, periodo)
+    UNIQUE (periodo)
 );
 --
 CREATE TABLE IF NOT EXISTS aux_facturas (
@@ -54,7 +53,6 @@ CREATE TABLE IF NOT EXISTS gestiones (
     itr INTEGER DEFAULT(0) NOT NULL,
     totalfactura REAL DEFAULT(0.0) NOT NULL,
     terminado INTEGER DEFAULT(0) NOT NULL,
-    fechaterminado DATE,
     obs TEXT,
     activa INTEGER DEFAULT(0) NOT NULL
 );
@@ -69,7 +67,7 @@ CREATE TABLE IF NOT EXISTS aux_gestiones (
 CREATE TABLE IF NOT EXISTS pagos (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     gestion_id INTEGER NOT NULL,
-    fecha DATE,
+    fecha DATE NOT NULL,
     pagador_id INTEGER NOT NULL,
     destinatario_id INTEGER NOT NULL,
     formapago_id INTEGER NOT NULL,
@@ -90,7 +88,6 @@ CREATE TABLE IF NOT EXISTS notas (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     pago_id INTEGER NOT NULL,
     factura_id INTEGER NULL,
-    pasada INTEGER DEFAULT(0),
     FOREIGN KEY (pago_id) REFERENCES pagos (id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (factura_id) REFERENCES facturas (id) ON DELETE CASCADE ON UPDATE CASCADE,
     UNIQUE (pago_id)

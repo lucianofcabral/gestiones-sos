@@ -173,17 +173,61 @@ def _crear_formulario(database: SQLiteDB, pago: dict) -> dict:
     )
 
     with ui.grid(columns=2).classes("w-full gap-4 mt-2"):
+        # Determinar valores iniciales y si está habilitado
+        es_nota_credito = fp == "Nota De Credito"
+        pagador_inicial = (
+            "SOS" if es_nota_credito else pago.get("pagador", "")
+        )
+        destinatario_inicial = (
+            "SM"
+            if es_nota_credito
+            else pago.get("destinatario", "")
+        )
+
         inputs["pagador"] = ui.select(
             options=database.obtener_agentes(),
-            value=pago.get("pagador", ""),
+            value=pagador_inicial,
             label="Pagador",
         ).props("filled")
 
         inputs["destinatario"] = ui.select(
             options=database.obtener_agentes(),
-            value=pago.get("destinatario", ""),
+            value=destinatario_inicial,
             label="Destinatario",
         ).props("filled")
+
+        # Aplicar estado inicial de habilitación
+        if es_nota_credito:
+            inputs["pagador"].disable()
+            inputs["destinatario"].disable()
+
+    # Lógica para manejar cambios en forma de pago
+    def on_formapago_change(e):
+        """Maneja el cambio de forma de pago"""
+        nueva_forma_pago = (
+            e.args if e.args else inputs["formapago"].value
+        )
+
+        if nueva_forma_pago == "Nota De Credito":
+            # Es nota de crédito: establecer SOS y SM, y bloquear campos
+            inputs["pagador"].set_value("SOS")
+            inputs["destinatario"].set_value("SM")
+            inputs["pagador"].disable()
+            inputs["destinatario"].disable()
+
+            ui.notify(
+                "Nota de Crédito: Pagador establecido en SOS y Destinatario en SM",
+                type="info",
+            )
+        else:
+            # No es nota de crédito: habilitar campos
+            inputs["pagador"].enable()
+            inputs["destinatario"].enable()
+
+    # Conectar el evento de cambio
+    inputs["formapago"].on(
+        "update:model-value", on_formapago_change
+    )
 
     return inputs
 
@@ -253,28 +297,31 @@ def _crear_botones_accion(
                 else None
             )
 
-            # Actualizar en la base de datos
-            resultado = database.actualizar_pago(
+            # Validar importe
+            if importe_val is None or importe_val <= 0:
+                ui.notify(
+                    "El importe debe ser mayor a 0",
+                    type="warning",
+                )
+                return
+
+            # Usar el método transaccional que maneja pago y nota juntos
+            resultado, mensaje = database.actualizar_pago(
                 pago_id=pago["id"],
-                fecha=fecha_str,
-                pagador=pagador_val,
-                destinatario=destinatario_val,
-                formapago=formapago_val,
-                importe=importe_val,
+                new_fecha=fecha_str,
+                new_pagador=pagador_val,
+                new_destinatario=destinatario_val,
+                new_formapago=formapago_val,
+                new_importe=importe_val,
             )
 
             if resultado:
-                ui.notify(
-                    "Pago actualizado correctamente",
-                    type="positive",
-                )
+                ui.notify(mensaje, type="positive")
                 dialog.close()
                 if refresh_callback:
                     refresh_callback()
             else:
-                ui.notify(
-                    "Error al actualizar el pago", type="negative"
-                )
+                ui.notify(mensaje, type="negative")
         except Exception as e:
             ui.notify(f"Error: {str(e)}", type="negative")
             print(f"Error al guardar pago: {e}")

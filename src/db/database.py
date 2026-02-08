@@ -155,7 +155,6 @@ class SQLiteDB:
             ).select(
                 [
                     "id",
-                    "nrofactura",
                     pl.col("fechaemitida")
                     .str.to_date(format="%m/%d/%y %H:%M:%S")
                     .dt.strftime("%Y-%m-%d"),
@@ -168,9 +167,8 @@ class SQLiteDB:
 
             for row in facturas_data.to_dicts():
                 self.cursor.execute(
-                    "Insert into facturas (nrofactura,fechaemitida,periodo,importe) values (:nrofactura,:fechaemitida,:periodo,:importe);",
+                    "Insert into facturas (fechaemitida,periodo,importe) values (:fechaemitida,:periodo,:importe);",
                     {
-                        "nrofactura": str(row["nrofactura"]),
                         "fechaemitida": str(row["fechaemitida"]),
                         "periodo": str(row["periodo"]),
                         "importe": row["importe"],
@@ -186,7 +184,7 @@ class SQLiteDB:
                     },
                 )
 
-            # gESTIONES
+            # gestiones
             gestiones_concatenado = pl.concat(
                 [
                     gestiones.with_columns(
@@ -274,13 +272,17 @@ class SQLiteDB:
                     ),
                 ]
             )
-            gestiones_concatenado = gestiones_concatenado.select(
-                [
-                    pl.col(col).alias(col.lower())
-                    for col in gestiones_concatenado.columns
-                ]
-            ).with_columns(
-                pl.col("dominio").str.replace_all(" ", "", True)
+            gestiones_concatenado = (
+                gestiones_concatenado.select(
+                    [
+                        pl.col(col).alias(col.lower())
+                        for col in gestiones_concatenado.columns
+                    ]
+                )
+                .with_columns(
+                    pl.col("dominio").str.replace_all(" ", "")
+                )
+                .select(pl.exclude("fechaterminado"))
             )
             cols = [
                 c
@@ -428,7 +430,7 @@ class SQLiteDB:
                     pl.col(col).alias(col.lower())
                     for col in notas_data.columns
                 ]
-            ).with_columns(pl.col("pasada").cast(pl.Int64))
+            ).select(pl.exclude("pasada"))
 
             for row in notas_data.to_dicts():
                 try:
@@ -447,11 +449,10 @@ class SQLiteDB:
                         factid = None
 
                     self.cursor.execute(
-                        "Insert into notas (pago_id,factura_id,pasada) values (:pago_id,:factura_id,:pasada);",
+                        "Insert into notas (pago_id,factura_id) values (:pago_id,:factura_id);",
                         {
                             "pago_id": pagoid,
                             "factura_id": factid,
-                            "pasada": row["pasada"],
                         },
                     )
                 except Exception as e:
@@ -462,6 +463,7 @@ class SQLiteDB:
 
         self.conn.commit()
 
+    # Get functions
     def obtener_tipos(self) -> list[str]:
         self.cursor.execute(
             "SELECT DISTINCT tipo FROM gestiones ORDER BY tipo;"
@@ -569,9 +571,11 @@ class SQLiteDB:
                             Select n.id
                             from notas n
                             where n.pago_id = p.id
-                                and n.pasada = 1
+                                and n.factura_id IS NOT NULL
                         )
             )"""
+
+        query += " ORDER BY g.fecha DESC"
 
         self.cursor.execute(query, params)
         return [dict(row) for row in self.cursor.fetchall()]
@@ -650,6 +654,38 @@ class SQLiteDB:
         rows = self.cursor.fetchall()
         return [dict(row) for row in rows]
 
+    def obtener_pagos_por_gestion(
+        self, gestion_id: int
+    ) -> list[dict[str, any]]:
+        """Obtiene todos los pagos de una gestión específica"""
+        query = """SELECT
+                        p.id,
+                        p.fecha,
+                        ap.agente AS pagador,
+                        ad.agente AS destinatario,
+                        fp.formapago,
+                        p.importe,
+                        ((n.id IS NOT NULL) and
+                        (f.id IS NULL)) AS es_nota_credito_no_pasada
+                    FROM
+                        pagos p
+                    LEFT JOIN agentes ap ON
+                        p.pagador_id = ap.id
+                    LEFT JOIN agentes ad ON
+                        p.destinatario_id = ad.id
+                    LEFT JOIN formaspago fp ON
+                        p.formapago_id = fp.id
+                    LEFT JOIN notas n ON
+                        p.id = n.pago_id
+                    LEFT JOIN facturas f ON
+                        n.factura_id = f.id 
+                    WHERE p.gestion_id = :gestion_id
+                    ORDER BY p.fecha DESC"""
+
+        self.cursor.execute(query, {"gestion_id": gestion_id})
+        rows = self.cursor.fetchall()
+        return [dict(row) for row in rows]
+
     def obtener_pago_por_id(self, pago_id: int) -> dict:
         """Obtiene un pago específico por ID"""
         try:
@@ -667,7 +703,7 @@ class SQLiteDB:
                 g.poliza,
                 g.cliente,
                 CASE WHEN EXISTS(
-                    SELECT 1 FROM notas n WHERE n.pago_id = p.id AND n.pasada = 0
+                    SELECT 1 FROM notas n WHERE n.pago_id = p.id AND n.factura_id IS NULL
                 ) THEN 1 ELSE 0 END as es_nota_credito_no_pasada
             FROM pagos p
             LEFT JOIN gestiones g ON p.gestion_id = g.id
@@ -687,105 +723,380 @@ class SQLiteDB:
             print(f"Error obteniendo pago: {e}")
             return {}
 
+    def obtener_gestion_por_id(self, gestion_id: int) -> dict:
+        """Obtiene una gestión específica por ID"""
+        try:
+            query = """
+            SELECT * FROM gestiones WHERE id = :gestion_id
+            """
+            result = self.cursor.execute(
+                query, {"gestion_id": gestion_id}
+            ).fetchone()
+            if result:
+                return dict(result)
+            return {}
+        except Exception as e:
+            print(f"Error obteniendo gestión: {e}")
+            return {}
+
+    # Do functions
+
     def actualizar_pago(
         self,
         pago_id: int,
-        fecha: str | None = None,
-        pagador: str | None = None,
-        destinatario: str | None = None,
-        formapago: str | None = None,
-        importe: float | None = None,
-    ) -> bool:
-        """Actualiza un pago en la base de datos"""
+        new_fecha: str,
+        new_pagador: str,
+        new_destinatario: str,
+        new_formapago: str,
+        new_importe: float,
+    ) -> tuple[bool, str]:
+        """
+        Actualiza un pago en la base de datos de forma transaccional.
+        Gestiona automáticamente las notas de crédito y aplica las reglas de negocio.
+
+        Args:
+            pago_id: ID del pago a actualizar
+            new_fecha: Nueva fecha en formato YYYY-MM-DD
+            new_pagador: Nombre del nuevo pagador
+            new_destinatario: Nombre del nuevo destinatario
+            new_formapago: Nueva forma de pago
+            new_importe: Nuevo importe
+
+        Returns:
+            tuple[bool, str]: (éxito, mensaje descriptivo)
+        """
         try:
-            # Construir la consulta dinámicamente
-            campos_update = []
-            valores = {"pago_id": pago_id}
+            # Iniciar transacción explícita
+            self.cursor.execute("BEGIN TRANSACTION")
 
-            if fecha is not None:
-                # Validar y formatear fecha
-                try:
-                    fecha_formateada = (
-                        datetime.datetime.strptime(
-                            fecha, "%Y-%m-%d"
-                        )
-                        .date()
-                        .isoformat()
+            # Obtener pago actual
+            old_pago = self.obtener_pago_por_id(pago_id)
+            if not old_pago:
+                self.conn.rollback()
+                return False, "Pago no encontrado"
+
+            old_formapago = old_pago.get("formapago", "")
+
+            # Verificar si hay nota existente y su estado
+            old_nota = self.cursor.execute(
+                "SELECT * FROM notas WHERE pago_id = :pago_id",
+                {"pago_id": pago_id},
+            ).fetchone()
+            old_nota = dict(old_nota) if old_nota else {}
+            old_nota_pasada = (
+                old_nota.get("factura_id") is not None
+                if old_nota
+                else False
+            )
+
+            # Validar y formatear fecha
+            try:
+                fecha_formateada = (
+                    datetime.datetime.strptime(
+                        new_fecha, "%Y-%m-%d"
                     )
-                    campos_update.append("fecha = :fecha")
-                    valores["fecha"] = fecha_formateada
-                except ValueError:
-                    print(f"Formato de fecha inválido: {fecha}")
-                    return False
+                    .date()
+                    .isoformat()
+                )
+            except ValueError:
+                self.conn.rollback()
+                return (
+                    False,
+                    f"Formato de fecha inválido: {new_fecha}",
+                )
 
-            if pagador is not None:
+            # Determinar pagador y destinatario según reglas de negocio
+            if new_formapago == "Nota De Credito":
+                # Si es nota de crédito: forzar SOS y SM
+                pagador_id = self.obtener_agente_id_por_nombre(
+                    "SOS"
+                )
+                destinatario_id = (
+                    self.obtener_agente_id_por_nombre("SM")
+                )
+
+                if pagador_id is None:
+                    self.conn.rollback()
+                    return (
+                        False,
+                        "Agente 'SOS' no encontrado en la base de datos",
+                    )
+                if destinatario_id is None:
+                    self.conn.rollback()
+                    return (
+                        False,
+                        "Agente 'SM' no encontrado en la base de datos",
+                    )
+
+            else:
+                # Si no es nota de crédito: usar los valores proporcionados
+                pagador_id = self.obtener_agente_id_por_nombre(
+                    new_pagador
+                )
+                destinatario_id = (
+                    self.obtener_agente_id_por_nombre(
+                        new_destinatario
+                    )
+                )
+
+                if pagador_id is None:
+                    self.conn.rollback()
+                    return (
+                        False,
+                        f"Pagador no encontrado: {new_pagador}",
+                    )
+                if destinatario_id is None:
+                    self.conn.rollback()
+                    return (
+                        False,
+                        f"Destinatario no encontrado: {new_destinatario}",
+                    )
+
+            # Obtener ID de forma de pago
+            formapago_id = self.obtener_formapago_id_por_nombre(
+                new_formapago
+            )
+            if formapago_id is None:
+                self.conn.rollback()
+                return (
+                    False,
+                    f"Forma de pago no encontrada: {new_formapago}",
+                )
+
+            # Actualizar el pago
+            query = """
+            UPDATE pagos 
+            SET fecha = :fecha,
+                pagador_id = :pagador_id,
+                destinatario_id = :destinatario_id,
+                formapago_id = :formapago_id,
+                importe = :importe
+            WHERE id = :pago_id
+            """
+
+            self.cursor.execute(
+                query,
+                {
+                    "pago_id": pago_id,
+                    "fecha": fecha_formateada,
+                    "pagador_id": pagador_id,
+                    "destinatario_id": destinatario_id,
+                    "formapago_id": formapago_id,
+                    "importe": float(new_importe),
+                },
+            )
+
+            # Gestionar tabla notas según cambios en forma de pago
+            cambio_a_nota = (
+                old_formapago != "Nota De Credito"
+                and new_formapago == "Nota De Credito"
+            )
+            cambio_desde_nota = (
+                old_formapago == "Nota De Credito"
+                and new_formapago != "Nota De Credito"
+            )
+
+            mensaje = "Pago actualizado correctamente"
+
+            if cambio_a_nota:
+                # Cambió A Nota De Crédito: crear registro en tabla notas
+                existing = self.cursor.execute(
+                    "SELECT id FROM notas WHERE pago_id = :pago_id",
+                    {"pago_id": pago_id},
+                ).fetchone()
+
+                if not existing:
+                    self.cursor.execute(
+                        "INSERT INTO notas (pago_id, factura_id, pasada) VALUES (:pago_id, NULL, 0)",
+                        {"pago_id": pago_id},
+                    )
+                    mensaje = "Pago actualizado y nota de crédito creada"
+
+            elif cambio_desde_nota:
+                # Cambió DESDE Nota De Crédito: verificar y eliminar si es posible
+                if old_nota_pasada:
+                    self.conn.rollback()
+                    return (
+                        False,
+                        "No se puede cambiar la forma de pago: la nota de crédito tiene factura asociada",
+                    )
+
+                # Eliminar solo si factura_id es NULL
+                self.cursor.execute(
+                    "DELETE FROM notas WHERE pago_id = :pago_id AND factura_id IS NULL",
+                    {"pago_id": pago_id},
+                )
+                mensaje = (
+                    "Pago actualizado y nota de crédito eliminada"
+                )
+
+            # Si todo salió bien, hacer commit
+            self.conn.commit()
+            return True, mensaje
+
+        except Exception as e:
+            # Si hay cualquier error, revertir todo
+            self.conn.rollback()
+            print(f"Error actualizando pago: {e}")
+            return False, f"Error: {str(e)}"
+
+    def crear_pago(
+        self,
+        gestion_id: int,
+        fecha: str,
+        pagador: str,
+        destinatario: str,
+        formapago: str,
+        importe: float,
+    ) -> tuple[bool, str]:
+        """
+        Crea un nuevo pago en la base de datos de forma transaccional.
+        Gestiona automáticamente las notas de crédito y aplica las reglas de negocio.
+
+        Args:
+            gestion_id: ID de la gestión asociada
+            fecha: Fecha del pago en formato YYYY-MM-DD
+            pagador: Nombre del pagador
+            destinatario: Nombre del destinatario
+            formapago: Forma de pago
+            importe: Importe del pago
+
+        Returns:
+            tuple[bool, str]: (éxito, mensaje descriptivo)
+        """
+        try:
+            # Iniciar transacción explícita
+            self.cursor.execute("BEGIN TRANSACTION")
+
+            # Validar que existe la gestión
+            gestion = self.cursor.execute(
+                "SELECT id FROM gestiones WHERE id = :gestion_id",
+                {"gestion_id": gestion_id},
+            ).fetchone()
+
+            if not gestion:
+                self.conn.rollback()
+                return (
+                    False,
+                    f"Gestión con ID {gestion_id} no encontrada",
+                )
+
+            # Validar y formatear fecha
+            try:
+                fecha_formateada = (
+                    datetime.datetime.strptime(fecha, "%Y-%m-%d")
+                    .date()
+                    .isoformat()
+                )
+            except ValueError:
+                self.conn.rollback()
+                return (
+                    False,
+                    f"Formato de fecha inválido: {fecha}",
+                )
+
+            # Validar importe
+            if importe <= 0:
+                self.conn.rollback()
+                return False, "El importe debe ser mayor a 0"
+
+            # Determinar pagador y destinatario según reglas de negocio
+            if formapago == "Nota De Credito":
+                # Si es nota de crédito: forzar SOS y SM
+                pagador_id = self.obtener_agente_id_por_nombre(
+                    "SOS"
+                )
+                destinatario_id = (
+                    self.obtener_agente_id_por_nombre("SM")
+                )
+
+                if pagador_id is None:
+                    self.conn.rollback()
+                    return (
+                        False,
+                        "Agente 'SOS' no encontrado en la base de datos",
+                    )
+                if destinatario_id is None:
+                    self.conn.rollback()
+                    return (
+                        False,
+                        "Agente 'SM' no encontrado en la base de datos",
+                    )
+            else:
+                # Si no es nota de crédito: usar los valores proporcionados
                 pagador_id = self.obtener_agente_id_por_nombre(
                     pagador
                 )
-                if pagador_id is not None:
-                    campos_update.append(
-                        "pagador_id = :pagador_id"
-                    )
-                    valores["pagador_id"] = pagador_id
-                else:
-                    print(f"Pagador no encontrado: {pagador}")
-                    return False
-
-            if destinatario is not None:
                 destinatario_id = (
                     self.obtener_agente_id_por_nombre(
                         destinatario
                     )
                 )
-                if destinatario_id is not None:
-                    campos_update.append(
-                        "destinatario_id = :destinatario_id"
-                    )
-                    valores["destinatario_id"] = destinatario_id
-                else:
-                    print(
-                        f"Destinatario no encontrado: {destinatario}"
-                    )
-                    return False
 
-            if formapago is not None:
-                formapago_id = (
-                    self.obtener_formapago_id_por_nombre(
-                        formapago
+                if pagador_id is None:
+                    self.conn.rollback()
+                    return (
+                        False,
+                        f"Pagador no encontrado: {pagador}",
                     )
+                if destinatario_id is None:
+                    self.conn.rollback()
+                    return (
+                        False,
+                        f"Destinatario no encontrado: {destinatario}",
+                    )
+
+            # Obtener ID de forma de pago
+            formapago_id = self.obtener_formapago_id_por_nombre(
+                formapago
+            )
+            if formapago_id is None:
+                self.conn.rollback()
+                return (
+                    False,
+                    f"Forma de pago no encontrada: {formapago}",
                 )
-                if formapago_id is not None:
-                    campos_update.append(
-                        "formapago_id = :formapago_id"
-                    )
-                    valores["formapago_id"] = formapago_id
-                else:
-                    print(
-                        f"Forma de pago no encontrada: {formapago}"
-                    )
-                    return False
 
-            if importe is not None:
-                campos_update.append("importe = :importe")
-                valores["importe"] = float(importe)
-
-            if not campos_update:
-                print("No hay campos para actualizar")
-                return False
-
-            query = f"""
-            UPDATE pagos 
-            SET {", ".join(campos_update)}
-            WHERE id = :pago_id
+            # Insertar el pago
+            query = """
+            INSERT INTO pagos (gestion_id, fecha, pagador_id, destinatario_id, formapago_id, importe)
+            VALUES (:gestion_id, :fecha, :pagador_id, :destinatario_id, :formapago_id, :importe)
             """
 
-            self.cursor.execute(query, valores)
+            self.cursor.execute(
+                query,
+                {
+                    "gestion_id": gestion_id,
+                    "fecha": fecha_formateada,
+                    "pagador_id": pagador_id,
+                    "destinatario_id": destinatario_id,
+                    "formapago_id": formapago_id,
+                    "importe": float(importe),
+                },
+            )
+
+            nuevo_pago_id = self.cursor.lastrowid
+            mensaje = "Pago creado correctamente"
+
+            # Si es Nota De Crédito, crear registro en tabla notas
+            if formapago == "Nota De Credito":
+                self.cursor.execute(
+                    "INSERT INTO notas (pago_id, factura_id, pasada) VALUES (:pago_id, NULL, 0)",
+                    {"pago_id": nuevo_pago_id},
+                )
+                mensaje = (
+                    "Pago y nota de crédito creados correctamente"
+                )
+
+            # Si todo salió bien, hacer commit
             self.conn.commit()
-            return True
+            return True, mensaje
 
         except Exception as e:
-            print(f"Error actualizando pago: {e}")
-            return False
+            # Si hay cualquier error, revertir todo
+            self.conn.rollback()
+            print(f"Error creando pago: {e}")
+            return False, f"Error: {str(e)}"
 
     def eliminar_pago(self, pago_id: int) -> bool:
         """Elimina un pago de la base de datos"""
@@ -827,3 +1138,203 @@ class SQLiteDB:
         except Exception as e:
             print(f"Error obteniendo forma de pago: {e}")
             return None
+
+    def crear_gestion(
+        self,
+        ngestion: int,
+        fecha: str,
+        cliente: str,
+        dominio: str,
+        poliza: str,
+        tipo: str,
+        motivo: str,
+        ncaso: int,
+        usuariocarga: str,
+        usuariorespuesta: str,
+        estado: int,
+        itr: int,
+        totalfactura: float,
+        terminado: int,
+        obs: str,
+        activa: int,
+    ) -> tuple[bool, str]:
+        """
+        Crea una nueva gestión en la base de datos.
+
+        Returns:
+            tuple[bool, str]: (éxito, mensaje descriptivo)
+        """
+        try:
+            # Validar campos requeridos
+            if not poliza:
+                return False, "La póliza es obligatoria"
+
+            if not tipo:
+                return False, "El tipo es obligatorio"
+
+            # Validar y formatear fecha
+            try:
+                fecha_formateada = (
+                    datetime.datetime.strptime(fecha, "%Y-%m-%d")
+                    .date()
+                    .isoformat()
+                )
+            except ValueError:
+                return (
+                    False,
+                    f"Formato de fecha inválido: {fecha}",
+                )
+
+            # Insertar gestión
+            query = """
+            INSERT INTO gestiones (
+                ngestion, fecha, cliente, dominio, poliza, tipo, motivo,
+                ncaso, usuariocarga, usuariorespuesta, estado, itr,
+                totalfactura, terminado,  obs, activa
+            ) VALUES (
+                :ngestion, :fecha, :cliente, :dominio, :poliza, :tipo, :motivo,
+                :ncaso, :usuariocarga, :usuariorespuesta, :estado, :itr,
+                :totalfactura, :terminado,  :obs, :activa
+            )
+            """
+
+            self.cursor.execute(
+                query,
+                {
+                    "ngestion": ngestion,
+                    "fecha": fecha_formateada,
+                    "cliente": cliente,
+                    "dominio": dominio,
+                    "poliza": poliza,
+                    "tipo": tipo,
+                    "motivo": motivo,
+                    "ncaso": ncaso,
+                    "usuariocarga": usuariocarga,
+                    "usuariorespuesta": usuariorespuesta,
+                    "estado": estado,
+                    "itr": itr,
+                    "totalfactura": float(totalfactura),
+                    "terminado": terminado,
+                    "obs": obs,
+                    "activa": activa,
+                },
+            )
+
+            self.conn.commit()
+            return True, "Gestión creada correctamente"
+
+        except Exception as e:
+            print(f"Error creando gestión: {e}")
+            return False, f"Error: {str(e)}"
+
+    def actualizar_gestion(
+        self,
+        gestion_id: int,
+        ngestion: int,
+        fecha: str,
+        cliente: str,
+        dominio: str,
+        poliza: str,
+        tipo: str,
+        motivo: str,
+        ncaso: int,
+        usuariocarga: str,
+        usuariorespuesta: str,
+        estado: int,
+        itr: int,
+        totalfactura: float,
+        terminado: int,
+        obs: str,
+        activa: int,
+    ) -> tuple[bool, str]:
+        """
+        Actualiza una gestión existente en la base de datos.
+
+        Returns:
+            tuple[bool, str]: (éxito, mensaje descriptivo)
+        """
+        try:
+            # Validar campos requeridos
+            if not poliza:
+                return False, "La póliza es obligatoria"
+
+            if not tipo:
+                return False, "El tipo es obligatorio"
+
+            # Validar y formatear fecha
+            try:
+                fecha_formateada = (
+                    datetime.datetime.strptime(fecha, "%Y-%m-%d")
+                    .date()
+                    .isoformat()
+                )
+            except ValueError:
+                return (
+                    False,
+                    f"Formato de fecha inválido: {fecha}",
+                )
+
+            # Actualizar gestión
+            query = """
+            UPDATE gestiones SET
+                ngestion = :ngestion,
+                fecha = :fecha,
+                cliente = :cliente,
+                dominio = :dominio,
+                poliza = :poliza,
+                tipo = :tipo,
+                motivo = :motivo,
+                ncaso = :ncaso,
+                usuariocarga = :usuariocarga,
+                usuariorespuesta = :usuariorespuesta,
+                estado = :estado,
+                itr = :itr,
+                totalfactura = :totalfactura,
+                terminado = :terminado,
+                obs = :obs,
+                activa = :activa
+            WHERE id = :gestion_id
+            """
+
+            self.cursor.execute(
+                query,
+                {
+                    "gestion_id": gestion_id,
+                    "ngestion": ngestion,
+                    "fecha": fecha_formateada,
+                    "cliente": cliente,
+                    "dominio": dominio,
+                    "poliza": poliza,
+                    "tipo": tipo,
+                    "motivo": motivo,
+                    "ncaso": ncaso,
+                    "usuariocarga": usuariocarga,
+                    "usuariorespuesta": usuariorespuesta,
+                    "estado": estado,
+                    "itr": itr,
+                    "totalfactura": float(totalfactura),
+                    "terminado": terminado,
+                    "obs": obs,
+                    "activa": activa,
+                },
+            )
+
+            self.conn.commit()
+            return True, "Gestión actualizada correctamente"
+
+        except Exception as e:
+            print(f"Error actualizando gestión: {e}")
+            return False, f"Error: {str(e)}"
+
+    def eliminar_gestion(self, gestion_id: int) -> bool:
+        """Elimina una gestión de la base de datos"""
+        try:
+            self.cursor.execute(
+                "DELETE FROM gestiones WHERE id = :gestion_id",
+                {"gestion_id": gestion_id},
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error eliminando gestión: {e}")
+            return False
