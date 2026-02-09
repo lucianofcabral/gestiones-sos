@@ -22,8 +22,8 @@ def crear_navbar(dark_mode):
                 on_click=lambda: ui.navigate.to("/pagos"),
             ).props("flat color=white")
             ui.button(
-                "Clientes",
-                on_click=lambda: ui.navigate.to("/clientes"),
+                "Períodos",
+                on_click=lambda: ui.navigate.to("/periodos"),
             ).props("flat color=white")
             ui.button(
                 "Reportes",

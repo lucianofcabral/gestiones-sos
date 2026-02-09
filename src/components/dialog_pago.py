@@ -11,9 +11,13 @@ if TYPE_CHECKING:
     from src.db.database import SQLiteDB
 
 
-def crear_dialog_pago(pago_id: int, refresh_callback=None):
+def crear_dialog_pago(
+    pago_id: int | None = None,
+    refresh_callback=None,
+    gestion_id: int | None = None,
+):
     """
-    Crea un dialog para mostrar y editar un pago.
+    Crea un dialog para mostrar, editar o crear un pago.
 
     Siguiendo las mejores prácticas de NiceGUI:
     - Consulta datos frescos de la BD
@@ -21,7 +25,8 @@ def crear_dialog_pago(pago_id: int, refresh_callback=None):
     - Recibe callback para refrescar la vista padre
 
     Args:
-        pago_id: ID del pago a mostrar/editar
+        pago_id: ID del pago a mostrar/editar (None para crear)
+        gestion_id: ID de la gestion para crear el pago
         refresh_callback: Función a llamar cuando se actualice/elimine el pago
 
     Returns:
@@ -29,8 +34,35 @@ def crear_dialog_pago(pago_id: int, refresh_callback=None):
     """
     database = get_database()
 
-    # Obtener datos frescos de la BD
-    pago = database.obtener_pago_por_id(pago_id)
+    es_nuevo = pago_id is None
+    if es_nuevo:
+        if gestion_id is None:
+            ui.notify(
+                "Gestión no especificada para el pago",
+                type="negative",
+            )
+            return None
+        gestion = database.obtener_gestion_por_id(gestion_id)
+        if not gestion:
+            ui.notify("Gestión no encontrada", type="negative")
+            return None
+        pago = {
+            "id": None,
+            "gestion_id": gestion_id,
+            "ngestion": gestion.get("ngestion", 0),
+            "poliza": gestion.get("poliza", ""),
+            "dominio": gestion.get("dominio", ""),
+            "cliente": gestion.get("cliente", ""),
+            "fecha": date.today(),
+            "importe": 0.0,
+            "formapago": "",
+            "pagador": "",
+            "destinatario": "",
+            "es_nota_credito_no_pasada": 0,
+        }
+    else:
+        # Obtener datos frescos de la BD
+        pago = database.obtener_pago_por_id(pago_id)
 
     if not pago:
         ui.notify("Pago no encontrado", type="negative")
@@ -41,7 +73,7 @@ def crear_dialog_pago(pago_id: int, refresh_callback=None):
         ui.card().classes("w-full max-w-2xl"),
     ):
         # Encabezado con información principal
-        _crear_encabezado(pago)
+        _crear_encabezado(pago, es_nuevo)
 
         ui.separator().classes("my-2")
 
@@ -59,12 +91,13 @@ def crear_dialog_pago(pago_id: int, refresh_callback=None):
                 pago=pago,
                 inputs=inputs,
                 refresh_callback=refresh_callback,
+                es_nuevo=es_nuevo,
             )
 
     return dialog
 
 
-def _crear_encabezado(pago: dict):
+def _crear_encabezado(pago: dict, es_nuevo: bool):
     """Crea el encabezado del dialog con información del pago"""
     with ui.row().classes(
         "w-full items-center bg-purple-100 dark:bg-purple-900/30 p-4 rounded-lg"
@@ -76,9 +109,9 @@ def _crear_encabezado(pago: dict):
 
         with ui.column().classes("flex-1 gap-1 ml-4"):
             # Título principal
-            ui.label("Detalle de Pago").classes(
-                "text-h5 font-bold"
-            )
+            ui.label(
+                "Nuevo Pago" if es_nuevo else "Detalle de Pago"
+            ).classes("text-h5 font-bold")
 
             # Info en badges
             with ui.row().classes("gap-2 items-center"):
@@ -160,9 +193,10 @@ def _crear_formulario(database: SQLiteDB, pago: dict) -> dict:
                 "text-subtitle1 font-bold"
             )
 
+            formapago_inicial = fp or None
             inputs["formapago"] = ui.select(
                 options=database.obtener_formaspago(),
-                value=fp,
+                value=formapago_inicial,
                 label="Forma de Pago",
             ).props("filled")
             inputs["pasada_label"] = None  # Ya no se usa inline
@@ -183,6 +217,10 @@ def _crear_formulario(database: SQLiteDB, pago: dict) -> dict:
             if es_nota_credito
             else pago.get("destinatario", "")
         )
+        if not pagador_inicial:
+            pagador_inicial = None
+        if not destinatario_inicial:
+            destinatario_inicial = None
 
         inputs["pagador"] = ui.select(
             options=database.obtener_agentes(),
@@ -238,6 +276,7 @@ def _crear_botones_accion(
     pago: dict,
     inputs: dict,
     refresh_callback,
+    es_nuevo: bool,
 ):
     """Crea los botones de acción (Guardar, Eliminar, Cerrar)"""
 
@@ -279,16 +318,17 @@ def _crear_botones_accion(
                 )
                 return
 
-            # Verificar si es nota de crédito no pasada
-            if (
-                inputs["formapago"].value == "Nota De Credito"
-                and pago.get("es_nota_credito_no_pasada") == 1
-            ):
-                ui.notify(
-                    "No se puede editar una 'Nota De Crédito' que NO ha sido pasada a SOS.",
-                    type="warning",
-                )
-                return
+            # Verificar si es nota de crédito no pasada (solo edicion)
+            if not es_nuevo:
+                if (
+                    inputs["formapago"].value == "Nota De Credito"
+                    and pago.get("es_nota_credito_no_pasada") == 0
+                ):
+                    ui.notify(
+                        "No se puede editar una 'Nota De Crédito' que NO ha sido pasada a SOS.",
+                        type="warning",
+                    )
+                    return
 
             formapago_val = inputs["formapago"].value
             importe_val = (
@@ -305,15 +345,25 @@ def _crear_botones_accion(
                 )
                 return
 
-            # Usar el método transaccional que maneja pago y nota juntos
-            resultado, mensaje = database.actualizar_pago(
-                pago_id=pago["id"],
-                new_fecha=fecha_str,
-                new_pagador=pagador_val,
-                new_destinatario=destinatario_val,
-                new_formapago=formapago_val,
-                new_importe=importe_val,
-            )
+            if es_nuevo:
+                resultado, mensaje = database.crear_pago(
+                    gestion_id=pago["gestion_id"],
+                    fecha=fecha_str,
+                    pagador=pagador_val,
+                    destinatario=destinatario_val,
+                    formapago=formapago_val,
+                    importe=importe_val,
+                )
+            else:
+                # Usar el método transaccional que maneja pago y nota juntos
+                resultado, mensaje = database.actualizar_pago(
+                    pago_id=pago["id"],
+                    new_fecha=fecha_str,
+                    new_pagador=pagador_val,
+                    new_destinatario=destinatario_val,
+                    new_formapago=formapago_val,
+                    new_importe=importe_val,
+                )
 
             if resultado:
                 ui.notify(mensaje, type="positive")
@@ -417,19 +467,26 @@ def _crear_botones_accion(
     # Botones
     with ui.row().classes("w-full justify-between gap-3 mt-2"):
         # Botón destructivo a la izquierda
-        ui.button(
-            "Eliminar",
-            icon="delete",
-            on_click=eliminar_pago,
-        ).props("color=negative outline")
+        if not es_nuevo:
+            ui.button(
+                "Eliminar",
+                icon="delete",
+                on_click=eliminar_pago,
+            ).props("color=negative outline")
+        else:
+            ui.space()
 
         # Botones de acción a la derecha
         with ui.row().classes("gap-2"):
             ui.button("Cancelar", on_click=dialog.close).props(
                 "flat"
             )
+            texto_boton = (
+                "Crear Pago" if es_nuevo else "Guardar Cambios"
+            )
+            icono_boton = "add" if es_nuevo else "save"
             ui.button(
-                "Guardar Cambios",
-                icon="save",
+                texto_boton,
+                icon=icono_boton,
                 on_click=guardar_cambios,
             ).props("color=primary")

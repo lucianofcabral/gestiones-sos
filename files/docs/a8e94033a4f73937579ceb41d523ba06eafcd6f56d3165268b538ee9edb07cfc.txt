@@ -1,0 +1,12 @@
+https://forum.freecodecamp.org/t/issues-with-code-road-extension-collated-posts/756182/33
+
+docker system prune -a --volumes
+docker builder prune -a
+rm -rf ~/.vscode/extensions/coderoad*
+rm -rf ~/Library/Application\ Support/Code/User/workspaceStorage/
+
+code --user-data-dir ./vscode-profile --extensions-dir ./vscode-extensions .
+
+
+
+tuto 1124848704

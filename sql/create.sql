@@ -105,3 +105,27 @@ BEGIN
         WHERE ngestion = NEW.ngestion
     );
 END;
+
+-- documentos
+CREATE TABLE IF NOT EXISTS documentos (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    titulo TEXT NOT NULL,
+    descripcion TEXT,
+    nombre_archivo TEXT NOT NULL,
+    mime_type TEXT,
+    tamano INTEGER NOT NULL,
+    hash TEXT NOT NULL,
+    ruta TEXT NOT NULL,
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    creado_por TEXT,
+    UNIQUE (hash)
+);
+
+-- gestion_documento (many-to-many)
+CREATE TABLE IF NOT EXISTS gestion_documento (
+    gestion_id INTEGER NOT NULL,
+    documento_id INTEGER NOT NULL,
+    PRIMARY KEY (gestion_id, documento_id),
+    FOREIGN KEY (gestion_id) REFERENCES gestiones (id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (documento_id) REFERENCES documentos (id) ON DELETE CASCADE ON UPDATE CASCADE
+);

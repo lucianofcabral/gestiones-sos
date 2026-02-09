@@ -1338,3 +1338,553 @@ class SQLiteDB:
         except Exception as e:
             print(f"Error eliminando gestión: {e}")
             return False
+
+    # ========== MÉTODOS PARA FACTURAS (PERÍODOS) ==========
+
+    def obtener_facturas(self) -> list[dict]:
+        """Obtiene todas las facturas/períodos con información de notas"""
+        try:
+            query = """
+                SELECT
+                    f.id,
+                    f.periodo,
+                    f.importe AS importefactura,
+                    COUNT(p.id) AS cantnotas,
+                    COALESCE(SUM(p.importe), 0) AS importenotas
+                FROM
+                    facturas f
+                LEFT JOIN notas n ON
+                    f.id = n.factura_id
+                LEFT JOIN pagos p ON
+                    n.pago_id = p.id
+                GROUP BY
+                    f.id,
+                    f.periodo,
+                    f.importe
+                ORDER BY
+                    f.periodo DESC
+            """
+            result = self.cursor.execute(query).fetchall()
+            return [dict(row) for row in result]
+        except Exception as e:
+            print(f"Error obteniendo facturas: {e}")
+            return []
+
+    def obtener_factura_por_id(self, factura_id: int) -> dict:
+        """Obtiene una factura específica por su ID"""
+        try:
+            query = """
+                SELECT 
+                    id,
+                    fechaemitida,
+                    periodo,
+                    importe
+                FROM facturas
+                WHERE id = :factura_id
+            """
+            result = self.cursor.execute(
+                query, {"factura_id": factura_id}
+            ).fetchone()
+            return dict(result) if result else {}
+        except Exception as e:
+            print(f"Error obteniendo factura: {e}")
+            return {}
+
+    def crear_factura(
+        self,
+        periodo: int,
+        fechaemitida: str,
+        importe: float,
+    ) -> tuple[bool, str]:
+        """
+        Crea una nueva factura/período en la base de datos.
+
+        Args:
+            periodo: Número del período (debe ser único)
+            fechaemitida: Fecha de emisión en formato YYYY-MM-DD
+            importe: Importe de la factura
+
+        Returns:
+            tuple[bool, str]: (éxito, mensaje descriptivo)
+        """
+        try:
+            # Validar campos requeridos
+            if not periodo:
+                return False, "El período es obligatorio"
+
+            # Validar y formatear fecha
+            try:
+                fecha_formateada = (
+                    datetime.datetime.strptime(
+                        fechaemitida, "%Y-%m-%d"
+                    )
+                    .date()
+                    .isoformat()
+                )
+            except ValueError:
+                return (
+                    False,
+                    f"Formato de fecha inválido: {fechaemitida}",
+                )
+
+            # Verificar que el período no exista
+            existe = self.cursor.execute(
+                "SELECT id FROM facturas WHERE periodo = :periodo",
+                {"periodo": periodo},
+            ).fetchone()
+
+            if existe:
+                return (
+                    False,
+                    f"Ya existe una factura para el período {periodo}",
+                )
+
+            # Insertar factura
+            query = """
+            INSERT INTO facturas (periodo, fechaemitida, importe)
+            VALUES (:periodo, :fechaemitida, :importe)
+            """
+
+            self.cursor.execute(
+                query,
+                {
+                    "periodo": periodo,
+                    "fechaemitida": fecha_formateada,
+                    "importe": float(importe) if importe else 0.0,
+                },
+            )
+
+            self.conn.commit()
+            return True, "Factura creada correctamente"
+
+        except Exception as e:
+            print(f"Error creando factura: {e}")
+            return False, f"Error: {str(e)}"
+
+    def actualizar_factura(
+        self,
+        factura_id: int,
+        periodo: int,
+        fechaemitida: str,
+        importe: float,
+    ) -> tuple[bool, str]:
+        """
+        Actualiza una factura existente en la base de datos.
+
+        Args:
+            factura_id: ID de la factura a actualizar
+            periodo: Número del período (debe ser único)
+            fechaemitida: Fecha de emisión en formato YYYY-MM-DD
+            importe: Importe de la factura
+
+        Returns:
+            tuple[bool, str]: (éxito, mensaje descriptivo)
+        """
+        try:
+            # Validar campos requeridos
+            if not periodo:
+                return False, "El período es obligatorio"
+
+            # Validar y formatear fecha
+            try:
+                fecha_formateada = (
+                    datetime.datetime.strptime(
+                        fechaemitida, "%Y-%m-%d"
+                    )
+                    .date()
+                    .isoformat()
+                )
+            except ValueError:
+                return (
+                    False,
+                    f"Formato de fecha inválido: {fechaemitida}",
+                )
+
+            # Verificar que el período no exista en otra factura
+            existe = self.cursor.execute(
+                "SELECT id FROM facturas WHERE periodo = :periodo AND id != :factura_id",
+                {"periodo": periodo, "factura_id": factura_id},
+            ).fetchone()
+
+            if existe:
+                return (
+                    False,
+                    f"Ya existe otra factura para el período {periodo}",
+                )
+
+            # Actualizar factura
+            query = """
+            UPDATE facturas SET
+                periodo = :periodo,
+                fechaemitida = :fechaemitida,
+                importe = :importe
+            WHERE id = :factura_id
+            """
+
+            self.cursor.execute(
+                query,
+                {
+                    "factura_id": factura_id,
+                    "periodo": periodo,
+                    "fechaemitida": fecha_formateada,
+                    "importe": float(importe) if importe else 0.0,
+                },
+            )
+
+            self.conn.commit()
+            return True, "Factura actualizada correctamente"
+
+        except Exception as e:
+            print(f"Error actualizando factura: {e}")
+            return False, f"Error: {str(e)}"
+
+    def eliminar_factura(
+        self, factura_id: int
+    ) -> tuple[bool, str]:
+        """
+        Elimina una factura de la base de datos.
+
+        Args:
+            factura_id: ID de la factura a eliminar
+
+        Returns:
+            tuple[bool, str]: (éxito, mensaje descriptivo)
+        """
+        try:
+            # Verificar si hay notas de crédito asociadas
+            notas = self.cursor.execute(
+                "SELECT COUNT(*) FROM notas WHERE factura_id = :factura_id",
+                {"factura_id": factura_id},
+            ).fetchone()[0]
+
+            if notas > 0:
+                return (
+                    False,
+                    f"No se puede eliminar la factura porque tiene {notas} nota(s) de crédito asociada(s)",
+                )
+
+            self.cursor.execute(
+                "DELETE FROM facturas WHERE id = :factura_id",
+                {"factura_id": factura_id},
+            )
+            self.conn.commit()
+            return True, "Factura eliminada correctamente"
+        except Exception as e:
+            print(f"Error eliminando factura: {e}")
+            return False, f"Error: {str(e)}"
+
+    def obtener_notas_sin_factura(self) -> list[dict]:
+        """Obtiene todas las notas de crédito que no están asociadas a ninguna factura"""
+        try:
+            query = """
+                SELECT
+                    n.id,
+                    g.ngestion,
+                    g.dominio,
+                    g.poliza,
+                    g.cliente,
+                    p.fecha,
+                    p.importe
+                FROM
+                    notas n
+                JOIN pagos p ON
+                    n.pago_id = p.id
+                JOIN gestiones g ON
+                    p.gestion_id = g.id
+                WHERE
+                    n.factura_id IS NULL
+                ORDER BY
+                    p.fecha DESC
+            """
+            result = self.cursor.execute(query).fetchall()
+            return [dict(row) for row in result]
+        except Exception as e:
+            print(f"Error obteniendo notas sin factura: {e}")
+            return []
+
+    def asignar_notas_a_factura(
+        self, nota_ids: list[int], factura_id: int
+    ) -> tuple[bool, str]:
+        """Asigna una lista de notas a una factura específica"""
+        try:
+            if not nota_ids:
+                return False, "No hay notas para asignar"
+
+            # Verificar que la factura existe
+            factura = self.cursor.execute(
+                "SELECT id FROM facturas WHERE id = :factura_id",
+                {"factura_id": factura_id},
+            ).fetchone()
+
+            if not factura:
+                return False, "La factura no existe"
+
+            # Asignar cada nota a la factura
+            for nota_id in nota_ids:
+                self.cursor.execute(
+                    "UPDATE notas SET factura_id = :factura_id WHERE id = :nota_id",
+                    {
+                        "factura_id": factura_id,
+                        "nota_id": nota_id,
+                    },
+                )
+
+            self.conn.commit()
+            return (
+                True,
+                f"{len(nota_ids)} nota(s) asignada(s) correctamente",
+            )
+        except Exception as e:
+            print(f"Error asignando notas a factura: {e}")
+            self.conn.rollback()
+            return False, f"Error: {str(e)}"
+
+    def crear_factura_con_notas(
+        self,
+        periodo: int,
+        fechaemitida: str,
+        importe: float,
+        nota_ids: list[int],
+    ) -> tuple[bool, str]:
+        """Crea una nueva factura y le asigna las notas especificadas"""
+        try:
+            # Primero crear la factura
+            exito, mensaje = self.crear_factura(
+                periodo, fechaemitida, importe
+            )
+
+            if not exito:
+                return False, mensaje
+
+            # Obtener el ID de la factura recién creada
+            factura_id = self.cursor.lastrowid
+
+            # Asignar las notas a la nueva factura
+            if nota_ids:
+                exito_asignacion, mensaje_asignacion = (
+                    self.asignar_notas_a_factura(
+                        nota_ids, factura_id
+                    )
+                )
+                if not exito_asignacion:
+                    return False, mensaje_asignacion
+
+            return (
+                True,
+                f"Factura creada y {len(nota_ids)} nota(s) asignada(s)",
+            )
+        except Exception as e:
+            print(f"Error creando factura con notas: {e}")
+            self.conn.rollback()
+            return False, f"Error: {str(e)}"
+
+    def obtener_notas_de_factura(
+        self, factura_id: int
+    ) -> list[dict]:
+        """Obtiene todas las notas asociadas a una factura específica"""
+        try:
+            query = """
+                SELECT
+                    n.id,
+                    g.ngestion,
+                    g.dominio,
+                    g.poliza,
+                    g.cliente,
+                    p.fecha,
+                    p.importe
+                FROM
+                    notas n
+                JOIN pagos p ON
+                    n.pago_id = p.id
+                JOIN gestiones g ON
+                    p.gestion_id = g.id
+                WHERE
+                    n.factura_id = :factura_id
+                ORDER BY
+                    p.fecha DESC
+            """
+            result = self.cursor.execute(
+                query, {"factura_id": factura_id}
+            ).fetchall()
+            return [dict(row) for row in result]
+        except Exception as e:
+            print(f"Error obteniendo notas de factura: {e}")
+            return []
+
+    def desasociar_nota_de_factura(
+        self, nota_id: int
+    ) -> tuple[bool, str]:
+        """Desasocia una nota de su factura (establece factura_id a NULL)"""
+        try:
+            self.cursor.execute(
+                "UPDATE notas SET factura_id = NULL WHERE id = :nota_id",
+                {"nota_id": nota_id},
+            )
+            self.conn.commit()
+            return True, "Nota desasociada correctamente"
+        except Exception as e:
+            print(f"Error desasociando nota: {e}")
+            self.conn.rollback()
+            return False, f"Error: {str(e)}"
+
+    # --- DOCUMENTOS ---
+
+    def obtener_documentos_por_gestion(
+        self, gestion_id: int
+    ) -> list[dict]:
+        """Obtiene todos los documentos asociados a una gestión"""
+        try:
+            query = """
+                SELECT 
+                    d.id,
+                    d.titulo,
+                    d.descripcion,
+                    d.nombre_archivo,
+                    d.mime_type,
+                    d.tamano,
+                    d.creado_en
+                FROM documentos d
+                INNER JOIN gestion_documento gd ON d.id = gd.documento_id
+                WHERE gd.gestion_id = :gestion_id
+                ORDER BY d.creado_en DESC
+            """
+            result = self.cursor.execute(
+                query, {"gestion_id": gestion_id}
+            ).fetchall()
+            return [dict(row) for row in result]
+        except Exception as e:
+            print(f"Error obteniendo documentos: {e}")
+            return []
+
+    def crear_documento(
+        self,
+        gestion_id: int,
+        titulo: str,
+        nombre_archivo: str,
+        ruta: str,
+        hash: str,
+        tamano: int,
+        descripcion: str = None,
+        mime_type: str = None,
+        creado_por: str = None,
+    ) -> tuple[bool, str]:
+        """Crea un documento y lo asocia a una gestión"""
+        try:
+            # Verificar si ya existe un documento con ese hash
+            existe = self.cursor.execute(
+                "SELECT id FROM documentos WHERE hash = :hash",
+                {"hash": hash},
+            ).fetchone()
+
+            if existe:
+                # El archivo ya existe, solo asociarlo a la gestión
+                documento_id = existe["id"]
+                # Verificar si ya está asociado
+                ya_asociado = self.cursor.execute(
+                    """SELECT 1 FROM gestion_documento 
+                       WHERE gestion_id = :gestion_id AND documento_id = :documento_id""",
+                    {
+                        "gestion_id": gestion_id,
+                        "documento_id": documento_id,
+                    },
+                ).fetchone()
+
+                if ya_asociado:
+                    return (
+                        False,
+                        "Este documento ya está asociado a la gestión",
+                    )
+
+                # Asociar documento existente a la gestión
+                self.cursor.execute(
+                    """INSERT INTO gestion_documento (gestion_id, documento_id)
+                       VALUES (:gestion_id, :documento_id)""",
+                    {
+                        "gestion_id": gestion_id,
+                        "documento_id": documento_id,
+                    },
+                )
+                self.conn.commit()
+                return (
+                    True,
+                    "Documento asociado correctamente (archivo ya existía)",
+                )
+
+            # Crear nuevo documento
+            self.cursor.execute(
+                """INSERT INTO documentos 
+                   (titulo, descripcion, nombre_archivo, mime_type, tamano, hash, ruta, creado_por)
+                   VALUES (:titulo, :descripcion, :nombre_archivo, :mime_type, :tamano, :hash, :ruta, :creado_por)""",
+                {
+                    "titulo": titulo,
+                    "descripcion": descripcion,
+                    "nombre_archivo": nombre_archivo,
+                    "mime_type": mime_type,
+                    "tamano": tamano,
+                    "hash": hash,
+                    "ruta": ruta,
+                    "creado_por": creado_por,
+                },
+            )
+            documento_id = self.cursor.lastrowid
+
+            # Asociar a la gestión
+            self.cursor.execute(
+                """INSERT INTO gestion_documento (gestion_id, documento_id)
+                   VALUES (:gestion_id, :documento_id)""",
+                {
+                    "gestion_id": gestion_id,
+                    "documento_id": documento_id,
+                },
+            )
+
+            self.conn.commit()
+            return (
+                True,
+                "Documento creado y asociado correctamente",
+            )
+        except Exception as e:
+            print(f"Error creando documento: {e}")
+            self.conn.rollback()
+            return False, f"Error: {str(e)}"
+
+    def desasociar_documento(
+        self, gestion_id: int, documento_id: int
+    ) -> tuple[bool, str]:
+        """Desasocia un documento de una gestión"""
+        try:
+            self.cursor.execute(
+                """DELETE FROM gestion_documento 
+                   WHERE gestion_id = :gestion_id AND documento_id = :documento_id""",
+                {
+                    "gestion_id": gestion_id,
+                    "documento_id": documento_id,
+                },
+            )
+            self.conn.commit()
+            return True, "Documento desasociado correctamente"
+        except Exception as e:
+            print(f"Error desasociando documento: {e}")
+            self.conn.rollback()
+            return False, f"Error: {str(e)}"
+
+    def obtener_ruta_documento(
+        self, documento_id: int
+    ) -> str | None:
+        """Obtiene la ruta del archivo de un documento"""
+        try:
+            result = self.cursor.execute(
+                "SELECT ruta, nombre_archivo FROM documentos WHERE id = :id",
+                {"id": documento_id},
+            ).fetchone()
+            return dict(result) if result else None
+        except Exception as e:
+            print(f"Error obteniendo ruta documento: {e}")
+            return None
+
+    def _detectar_mime(self, nombre_archivo: str) -> str:
+        """Detecta el tipo MIME basándose en la extensión"""
+        import mimetypes
+
+        mime, _ = mimetypes.guess_type(nombre_archivo)
+        return mime or "application/octet-stream"

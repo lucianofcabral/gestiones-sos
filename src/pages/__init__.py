@@ -2,7 +2,12 @@
 
 from . import gestiones
 from . import pagos
-from . import clientes
+from . import periodos
 from . import reportes
 
-__all__ = ["gestiones", "pagos", "clientes", "reportes"]
+__all__ = [
+    "gestiones",
+    "pagos",
+    "periodos",
+    "reportes",
+]

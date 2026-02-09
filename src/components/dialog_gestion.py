@@ -7,6 +7,9 @@ from typing import TYPE_CHECKING
 from nicegui import ui
 from src.db.connection import get_database
 from src.components.dialog_pago import crear_dialog_pago
+from src.components.documentos_gestion import (
+    crear_seccion_documentos,
+)
 
 if TYPE_CHECKING:
     from src.db.database import SQLiteDB
@@ -58,6 +61,9 @@ def crear_dialog_gestion(
             if not es_nuevo:
                 ui.separator().classes("mt-4")
                 _crear_tabla_pagos(gestion["id"], database)
+
+                ui.separator().classes("mt-4")
+                crear_seccion_documentos(gestion["id"])
 
             ui.separator().classes("mt-4")
 
@@ -282,6 +288,21 @@ def _crear_tabla_pagos(gestion_id: int, database: SQLiteDB):
                 "text-h6 font-bold ml-2 flex-1"
             )
 
+            def abrir_nuevo_pago():
+                dialog_pago = crear_dialog_pago(
+                    pago_id=None,
+                    gestion_id=gestion_id,
+                    refresh_callback=refrescar_tabla,
+                )
+                if dialog_pago:
+                    dialog_pago.open()
+
+            ui.button(
+                "Nuevo Pago",
+                icon="add",
+                on_click=abrir_nuevo_pago,
+            ).props("color=primary")
+
             # Botón para refrescar pagos
             def refrescar_tabla():
                 """Refresca los datos de la tabla de pagos"""
@@ -403,69 +424,71 @@ def _crear_botones_accion(
 ):
     """Crea los botones de acción"""
 
+    def _armar_datos(
+        terminado_override: int | None = None,
+        activa_override: int | None = None,
+    ):
+        """Construye el payload para crear/actualizar la gestión"""
+        # Validar campos requeridos
+        if not inputs["poliza"].value:
+            ui.notify("La póliza es obligatoria", type="warning")
+            return None
+
+        if not inputs["tipo"].value:
+            ui.notify("El tipo es obligatorio", type="warning")
+            return None
+
+        if not inputs["fecha"].value:
+            ui.notify("La fecha es obligatoria", type="warning")
+            return None
+
+        datos = {
+            "ngestion": int(inputs["ngestion"].value or 0),
+            "fecha": str(inputs["fecha"].value),
+            "cliente": inputs["cliente"].value or "",
+            "dominio": inputs["dominio"].value or "",
+            "poliza": inputs["poliza"].value,
+            "tipo": inputs["tipo"].value,
+            "motivo": inputs["motivo"].value or "",
+            "ncaso": int(inputs["ncaso"].value or 0),
+            "usuariocarga": inputs["usuariocarga"].value or "",
+            "usuariorespuesta": inputs["usuariorespuesta"].value
+            or "",
+            "estado": int(inputs["estado"].value or 0),
+            "itr": int(inputs["itr"].value or 0),
+            "totalfactura": float(
+                inputs["totalfactura"].value or 0
+            ),
+            "obs": inputs["obs"].value or "",
+        }
+
+        if not es_nuevo and gestion:
+            datos["terminado"] = gestion.get("terminado", 0)
+            datos["activa"] = gestion.get("activa", 1)
+        else:
+            datos["terminado"] = 0
+            datos["activa"] = 1
+
+        if terminado_override is not None:
+            datos["terminado"] = terminado_override
+
+        if activa_override is not None:
+            datos["activa"] = activa_override
+
+        return datos
+
     def guardar_cambios():
         """Guarda los cambios o crea nueva gestión"""
         try:
-            # Validar campos requeridos
-            if not inputs["poliza"].value:
-                ui.notify(
-                    "La póliza es obligatoria", type="warning"
-                )
+            datos = _armar_datos()
+            if datos is None:
                 return
-
-            if not inputs["tipo"].value:
-                ui.notify(
-                    "El tipo es obligatorio", type="warning"
-                )
-                return
-
-            if not inputs["fecha"].value:
-                ui.notify(
-                    "La fecha es obligatoria", type="warning"
-                )
-                return
-
-            # Preparar datos
-            datos = {
-                "ngestion": int(inputs["ngestion"].value or 0),
-                "fecha": str(inputs["fecha"].value),
-                "cliente": inputs["cliente"].value or "",
-                "dominio": inputs["dominio"].value or "",
-                "poliza": inputs["poliza"].value,
-                "tipo": inputs["tipo"].value,
-                "motivo": inputs["motivo"].value or "",
-                "ncaso": int(inputs["ncaso"].value or 0),
-                "usuariocarga": inputs["usuariocarga"].value
-                or "",
-                "usuariorespuesta": inputs[
-                    "usuariorespuesta"
-                ].value
-                or "",
-                "estado": int(inputs["estado"].value or 0),
-                "itr": int(inputs["itr"].value or 0),
-                "totalfactura": float(
-                    inputs["totalfactura"].value or 0
-                ),
-                "obs": inputs["obs"].value or "",
-            }
-
-            # Mantener valores existentes de campos no editables
-            if not es_nuevo and gestion:
-                datos["terminado"] = gestion.get("terminado", 0)
-
-                datos["activa"] = gestion.get("activa", 1)
-            else:
-                # Valores por defecto para nueva gestión
-                datos["terminado"] = 0
-                datos["activa"] = 1
 
             if es_nuevo:
-                # Crear nueva gestión
                 resultado, mensaje = database.crear_gestion(
                     **datos
                 )
             else:
-                # Actualizar gestión existente
                 resultado, mensaje = database.actualizar_gestion(
                     gestion_id=gestion["id"], **datos
                 )
@@ -482,10 +505,46 @@ def _crear_botones_accion(
             ui.notify(f"Error: {str(e)}", type="negative")
             print(f"Error al guardar gestión: {e}")
 
+    def terminar_gestion():
+        """Marca la gestión como terminada"""
+        if es_nuevo or not gestion:
+            return
+        try:
+            datos = _armar_datos(terminado_override=1)
+            if datos is None:
+                return
+
+            resultado, mensaje = database.actualizar_gestion(
+                gestion_id=gestion["id"], **datos
+            )
+            if resultado:
+                ui.notify(
+                    "Gestión marcada como terminada",
+                    type="positive",
+                )
+                dialog.close()
+                if refresh_callback:
+                    refresh_callback()
+            else:
+                ui.notify(mensaje, type="negative")
+        except Exception as e:
+            ui.notify(f"Error: {str(e)}", type="negative")
+            print(f"Error al terminar gestión: {e}")
+
     def eliminar_gestion():
-        """Elimina la gestión con confirmación"""
+        """Desactiva la gestión con confirmación"""
         if es_nuevo:
             return  # No se puede eliminar algo que no existe
+        if gestion:
+            pagos_asociados = database.obtener_pagos_por_gestion(
+                gestion["id"]
+            )
+            if pagos_asociados:
+                ui.notify(
+                    "No se puede desactivar: la gestión tiene pagos asociados",
+                    type="warning",
+                )
+                return
 
         with (
             ui.dialog() as confirm_dialog,
@@ -495,12 +554,12 @@ def _crear_botones_accion(
                 ui.icon("warning", size="3rem").classes(
                     "text-orange-500"
                 )
-                ui.label("¿Eliminar esta gestión?").classes(
+                ui.label("¿Desactivar esta gestión?").classes(
                     "text-h6 font-bold"
                 )
-                ui.label(
-                    "Esta acción no se puede deshacer."
-                ).classes("text-center text-gray-600")
+                ui.label("La gestión quedará inactiva.").classes(
+                    "text-center text-gray-600"
+                )
 
                 with ui.row().classes(
                     "w-full justify-center gap-3 mt-2"
@@ -512,12 +571,21 @@ def _crear_botones_accion(
 
                     def confirmar_eliminacion():
                         try:
-                            resultado = database.eliminar_gestion(
-                                gestion["id"]
+                            datos = _armar_datos(
+                                activa_override=0
+                            )
+                            if datos is None:
+                                return
+
+                            resultado, mensaje = (
+                                database.actualizar_gestion(
+                                    gestion_id=gestion["id"],
+                                    **datos,
+                                )
                             )
                             if resultado:
                                 ui.notify(
-                                    "Gestión eliminada correctamente",
+                                    "Gestión desactivada correctamente",
                                     type="positive",
                                 )
                                 confirm_dialog.close()
@@ -526,7 +594,7 @@ def _crear_botones_accion(
                                     refresh_callback()
                             else:
                                 ui.notify(
-                                    "Error al eliminar la gestión",
+                                    mensaje,
                                     type="negative",
                                 )
                         except Exception as e:
@@ -539,7 +607,7 @@ def _crear_botones_accion(
                             )
 
                     ui.button(
-                        "Eliminar",
+                        "Desactivar",
                         icon="delete",
                         on_click=confirmar_eliminacion,
                     ).props("color=negative")
@@ -550,16 +618,38 @@ def _crear_botones_accion(
     with ui.row().classes("w-full justify-between gap-3 mt-2"):
         # Botón eliminar (solo si no es nuevo)
         if not es_nuevo:
-            ui.button(
+            boton_eliminar = ui.button(
                 "Eliminar",
                 icon="delete",
                 on_click=eliminar_gestion,
             ).props("color=negative outline")
+            tiene_pagos = False
+            if gestion:
+                tiene_pagos = bool(
+                    database.obtener_pagos_por_gestion(
+                        gestion["id"]
+                    )
+                )
+            if gestion and gestion.get("activa", 1) == 0:
+                boton_eliminar.disable()
+            if tiene_pagos:
+                boton_eliminar.disable()
         else:
             ui.space()
 
         # Botones de acción a la derecha
         with ui.row().classes("gap-2"):
+            if not es_nuevo:
+                terminado = (
+                    gestion.get("terminado", 0) if gestion else 0
+                )
+                boton_terminar = ui.button(
+                    "Terminar",
+                    icon="check_circle",
+                    on_click=terminar_gestion,
+                ).props("color=positive outline")
+                if terminado:
+                    boton_terminar.disable()
             ui.button("Cancelar", on_click=dialog.close).props(
                 "flat"
             )
