@@ -1888,3 +1888,238 @@ class SQLiteDB:
 
         mime, _ = mimetypes.guess_type(nombre_archivo)
         return mime or "application/octet-stream"
+
+    def importar_gestiones_desde_excel(
+        self, file_path: str
+    ) -> tuple[bool, dict]:
+        """
+        Importa gestiones desde un archivo Excel.
+        Actualiza las existentes e inserta las nuevas.
+
+        Returns:
+            tuple[bool, dict]: (éxito, estadísticas)
+            estadísticas = {
+                'actualizadas': int,
+                'insertadas': int,
+                'errores': list[str]
+            }
+        """
+        try:
+            import polars as pl
+
+            # Asegurar que file_path es una cadena
+            file_path_str = str(file_path)
+
+            # Leer Excel usando fastexcel como engine
+            df = pl.read_excel(
+                file_path_str,
+                engine="calamine",  # fastexcel usa calamine
+                schema_overrides={
+                    "N° Caso": pl.Int32,
+                },
+            )
+
+            # Mapeo de columnas Excel → DB
+            columnas_map = {
+                "Fecha": "fecha",
+                "N° Gestión": "ngestion",
+                "Cliente": "cliente",
+                "Dominio": "dominio",
+                "Póliza": "poliza",
+                "Tipo": "tipo",
+                "Motivo": "motivo",
+                "N° Caso": "ncaso",
+                "Usuario Carga": "usuariocarga",
+                "Usuario Respuesta": "usuariorespuesta",
+                "Estado": "estado",
+                "ITR": "itr",
+            }
+
+            # Renombrar columnas que existan
+            rename_dict = {
+                k: v
+                for k, v in columnas_map.items()
+                if k in df.columns
+            }
+            df = df.rename(rename_dict).select(
+                [
+                    "ngestion",
+                    "fecha",
+                    "cliente",
+                    "dominio",
+                    "poliza",
+                    "tipo",
+                    "motivo",
+                    "ncaso",
+                    "usuariocarga",
+                    "usuariorespuesta",
+                    "estado",
+                    "itr",
+                ]
+            )
+
+            # Mapeo de estados texto → número
+            estados_map = {
+                "RECHAZADO": 0,
+                "CERRADO": 1,
+                "RECLAMADO": 2,
+                "ABIERTO": 3,
+                "": 0,
+            }
+
+            estadisticas = {
+                "actualizadas": 0,
+                "insertadas": 0,
+                "errores": [],
+            }
+
+            for row in df.to_dicts():
+                try:
+                    ngestion = int(row.get("ngestion", 0))
+                    if ngestion == 0:
+                        print(row)
+                        continue
+
+                    # Convertir fecha
+                    fecha = row.get("fecha")
+                    if fecha is None:
+                        fecha_formateada = (
+                            datetime.datetime.now().strftime(
+                                "%Y-%m-%d"
+                            )
+                        )
+                    elif isinstance(fecha, str):
+                        # Intentar diferentes formatos
+                        for fmt in [
+                            "%d/%m/%Y",
+                            "%Y-%m-%d",
+                            "%d/%m/%y",
+                        ]:
+                            try:
+                                fecha_formateada = (
+                                    datetime.datetime.strptime(
+                                        fecha, fmt
+                                    ).strftime("%Y-%m-%d")
+                                )
+                                break
+                            except ValueError:
+                                continue
+                        else:
+                            fecha_formateada = (
+                                datetime.datetime.now().strftime(
+                                    "%Y-%m-%d"
+                                )
+                            )
+                    else:
+                        # Es un objeto datetime
+                        fecha_formateada = fecha.strftime(
+                            "%Y-%m-%d"
+                        )
+
+                    # Convertir estado texto a número
+                    estado_texto = (
+                        str(row.get("estado", "")).strip().upper()
+                    )
+                    estado = estados_map.get(estado_texto, 0)
+
+                    # Limpiar dominio (sin espacios)
+                    dominio = (
+                        str(row.get("dominio", ""))
+                        .replace(" ", "")
+                        .upper()
+                    )
+
+                    # Verificar si existe la gestión
+                    existe = self.cursor.execute(
+                        "SELECT id FROM gestiones WHERE ngestion = :ngestion",
+                        {"ngestion": ngestion},
+                    ).fetchone()
+
+                    params = {
+                        "ngestion": ngestion,
+                        "fecha": fecha_formateada,
+                        "cliente": str(
+                            row.get("cliente", "")
+                        ).strip(),
+                        "dominio": dominio,
+                        "poliza": str(
+                            row.get("poliza", "")
+                        ).strip(),
+                        "tipo": str(row.get("tipo", "VEHICULAR"))
+                        .strip()
+                        .upper(),
+                        "motivo": str(
+                            row.get("motivo", "")
+                        ).strip(),
+                        "ncaso": int(row.get("ncaso", 0) or 0),
+                        "usuariocarga": str(
+                            row.get("usuariocarga", "")
+                        ).strip(),
+                        "usuariorespuesta": str(
+                            row.get("usuariorespuesta", "")
+                        ).strip(),
+                        "estado": estado,
+                        "itr": int(row.get("itr", 0) or 0),
+                    }
+
+                    if existe:
+                        # UPDATE
+                        query = """
+                        UPDATE gestiones SET
+                            fecha = :fecha,
+                            cliente = :cliente,
+                            dominio = :dominio,
+                            poliza = :poliza,
+                            tipo = :tipo,
+                            motivo = :motivo,
+                            ncaso = :ncaso,
+                            usuariocarga = :usuariocarga,
+                            usuariorespuesta = :usuariorespuesta,
+                            estado = :estado,
+                            itr = :itr
+                        WHERE ngestion = :ngestion
+                        """
+                        self.cursor.execute(query, params)
+                        estadisticas["actualizadas"] += 1
+                    else:
+                        # INSERT
+                        params.update(
+                            {
+                                "totalfactura": 0.0,
+                                "terminado": 0,
+                                "obs": "",
+                                "activa": 1,
+                            }
+                        )
+
+                        query = """
+                        INSERT INTO gestiones (
+                            ngestion, fecha, cliente, dominio, poliza, tipo, motivo,
+                            ncaso, usuariocarga, usuariorespuesta, estado, itr,
+                            totalfactura, terminado, obs, activa
+                        ) VALUES (
+                            :ngestion, :fecha, :cliente, :dominio, :poliza, :tipo, :motivo,
+                            :ncaso, :usuariocarga, :usuariorespuesta, :estado, :itr,
+                            :totalfactura, :terminado, :obs, :activa
+                        )
+                        """
+                        self.cursor.execute(query, params)
+                        estadisticas["insertadas"] += 1
+
+                except Exception as e:
+                    error_msg = f"Error en N° Gestión {ngestion}: {str(e)}"
+                    print(error_msg)
+                    estadisticas["errores"].append(error_msg)
+                    continue
+
+            self.conn.commit()
+            return True, estadisticas
+
+        except Exception as e:
+            print(f"Error importando Excel: {e}")
+            self.conn.rollback()
+            return False, {
+                "actualizadas": 0,
+                "insertadas": 0,
+                "errores": [str(e)],
+            }

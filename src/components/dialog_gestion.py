@@ -149,7 +149,7 @@ def _crear_formulario(
             "cliente": "",
             "dominio": "",
             "poliza": "",
-            "tipo": "",
+            "tipo": None,
             "motivo": "",
             "ncaso": 0,
             "usuariocarga": "",

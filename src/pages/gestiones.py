@@ -178,6 +178,170 @@ def tabla_gestiones(refresh_callback=None):
     table.on("selection", lambda: open_gestion())
 
 
+async def importar_excel(refresh_callback=None):
+    """Maneja la importación de Excel"""
+    uploading_dialog = ui.dialog()
+    with uploading_dialog, ui.card().classes("w-full max-w-xl"):
+        ui.label("Importar Gestiones desde Excel").classes(
+            "text-h6"
+        )
+        ui.separator()
+
+        ui.label(
+            "Selecciona un archivo Excel con las columnas: Fecha, N° Gestion, Cliente, Dominio, Póliza, Tipo, Motivo, N° Caso, Usuario Carga, Usuario Respuesta, Estado, ITR"
+        ).classes("text-caption text-grey-7 mb-4")
+
+        result_container = ui.column().classes("w-full")
+
+        async def handle_upload(e):
+            result_container.clear()
+            with result_container:
+                ui.spinner(size="lg")
+                ui.label("Procesando archivo...").classes(
+                    "text-body2"
+                )
+
+            temp_path = None
+            try:
+                # En NiceGUI, e contiene información del archivo
+                import tempfile
+                import os
+                import shutil
+
+                # e.file es un objeto SmallFileUpload que contiene los bytes del archivo
+                # Opción 1: Si tiene _data (bytes), escribirlo a un archivo temporal
+                if hasattr(e.file, "_data"):
+                    temp_fd, temp_path = tempfile.mkstemp(
+                        suffix=".xlsx"
+                    )
+                    os.write(temp_fd, e.file._data)
+                    os.close(temp_fd)
+                # Opción 2: Buscar una ruta temporal que exista
+                else:
+                    source_file = None
+                    for attr in [
+                        "path",
+                        "_path",
+                        "file",
+                        "_file",
+                        "tmpfile",
+                    ]:
+                        if hasattr(e.file, attr):
+                            val = getattr(e.file, attr)
+                            if isinstance(
+                                val, str
+                            ) and os.path.exists(val):
+                                source_file = val
+                                break
+
+                    if not source_file:
+                        raise ValueError(
+                            f"No se pudo encontrar la ruta del archivo. Atributos: {[a for a in dir(e.file) if not a.startswith('__')]}"
+                        )
+
+                    # Copiar a temp_path
+                    temp_fd, temp_path = tempfile.mkstemp(
+                        suffix=".xlsx"
+                    )
+                    os.close(temp_fd)
+                    shutil.copy2(source_file, temp_path)
+
+                # Importar
+                db = get_database()
+                success, stats = (
+                    db.importar_gestiones_desde_excel(temp_path)
+                )
+
+                result_container.clear()
+                with result_container:
+                    if success:
+                        ui.label(
+                            "✅ Importación completada"
+                        ).classes("text-h6 text-positive")
+                        with ui.card().classes(
+                            "w-full bg-positive-1"
+                        ):
+                            ui.label(
+                                f"📝 {stats['actualizadas']} gestiones actualizadas"
+                            ).classes("text-body1")
+                            ui.label(
+                                f"➕ {stats['insertadas']} gestiones insertadas"
+                            ).classes("text-body1")
+
+                            if stats["errores"]:
+                                ui.separator()
+                                ui.label(
+                                    f"⚠️ {len(stats['errores'])} errores encontrados:"
+                                ).classes(
+                                    "text-body2 text-warning"
+                                )
+                                with ui.scroll_area().classes(
+                                    "h-32"
+                                ):
+                                    for error in stats[
+                                        "errores"
+                                    ][
+                                        :10
+                                    ]:  # Mostrar solo los primeros 10
+                                        ui.label(
+                                            f"• {error}"
+                                        ).classes("text-caption")
+
+                        ui.notify(
+                            "Importación completada",
+                            type="positive",
+                        )
+
+                        # Refrescar tabla después de cerrar
+                        if refresh_callback:
+                            refresh_callback()
+                    else:
+                        ui.label(
+                            "❌ Error en la importación"
+                        ).classes("text-h6 text-negative")
+                        with ui.card().classes(
+                            "w-full bg-negative-1"
+                        ):
+                            for error in stats.get(
+                                "errores", ["Error desconocido"]
+                            ):
+                                ui.label(f"• {error}").classes(
+                                    "text-body2"
+                                )
+                        ui.notify(
+                            "Error en importación",
+                            type="negative",
+                        )
+
+            except Exception as e:
+                result_container.clear()
+                with result_container:
+                    ui.label(
+                        "❌ Error al procesar el archivo"
+                    ).classes("text-h6 text-negative")
+                    ui.label(str(e)).classes(
+                        "text-caption text-grey-7"
+                    )
+                ui.notify(f"Error: {str(e)}", type="negative")
+            finally:
+                # Limpiar archivo temporal
+                if temp_path and os.path.exists(temp_path):
+                    os.remove(temp_path)
+
+        ui.upload(
+            label="Seleccionar archivo Excel",
+            on_upload=handle_upload,
+            auto_upload=True,
+        ).props('accept=".xlsx,.xls"').classes("w-full")
+
+        with ui.row().classes("w-full justify-end mt-4"):
+            ui.button(
+                "Cerrar", on_click=uploading_dialog.close
+            ).props("outline")
+
+    uploading_dialog.open()
+
+
 @ui.page("/")
 def page_gestiones():
     """Página principal de gestiones"""
@@ -241,6 +405,15 @@ def page_gestiones():
                     icon="add",
                     on_click=crear_nueva_gestion,
                 ).props("color=primary")
+
+                # Botón para importar desde Excel
+                ui.button(
+                    "Importar Excel",
+                    icon="upload_file",
+                    on_click=lambda: importar_excel(
+                        refresh_tabla
+                    ),
+                ).props("color=secondary outline")
 
             with ui.row().classes("w-full gap-4 mt-2"):
                 # Tipo
