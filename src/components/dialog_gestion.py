@@ -10,6 +10,8 @@ from src.components.dialog_pago import crear_dialog_pago
 from src.components.documentos_gestion import (
     crear_seccion_documentos,
 )
+from src.components.tipo_select import crear_tipo_select
+from src.components.estado_select import crear_estado_select
 
 if TYPE_CHECKING:
     from src.db.database import SQLiteDB
@@ -154,7 +156,7 @@ def _crear_formulario(
             "ncaso": 0,
             "usuariocarga": "",
             "usuariorespuesta": "",
-            "estado": 0,
+            "estado": None,
             "itr": 0,
             "totalfactura": 0.0,
             "terminado": 0,
@@ -181,13 +183,10 @@ def _crear_formulario(
                 value=valores.get("fecha", date.today()),
             ).props("format=YYYY-MM-DD filled")
 
-            inputs["tipo"] = ui.select(
-                options=database.obtener_tipos()
-                or ["Especial", "Normal", "Urgente"],
+            inputs["tipo"] = crear_tipo_select(
                 value=valores.get("tipo", ""),
                 label="Tipo",
-                with_input=True,
-            ).props("filled")
+            )
 
     # Segunda fila: Datos del vehículo y póliza
     with ui.card().classes("w-full mt-3"):
@@ -200,6 +199,16 @@ def _crear_formulario(
                 label="Dominio",
                 value=valores.get("dominio", ""),
             ).props("filled")
+
+            # Normalizar dominio automáticamente (uppercase y sin espacios)
+            inputs["dominio"].on(
+                "update:model-value",
+                lambda e: e.sender.set_value(
+                    e.args.upper().replace(" ", "")
+                    if e.args
+                    else e.args
+                ),
+            )
 
             inputs["poliza"] = ui.input(
                 label="Nro. Póliza",
@@ -257,11 +266,10 @@ def _crear_formulario(
                 min=0,
             ).props("filled readonly")
 
-            inputs["estado"] = ui.number(
+            inputs["estado"] = crear_estado_select(
+                value=valores.get("estado", ""),
                 label="Estado",
-                value=valores.get("estado", 0),
-                min=0,
-            ).props("filled readonly")
+            )
 
         with ui.grid(columns=2).classes("w-full gap-4 mt-3"):
             inputs["usuariocarga"] = ui.input(
@@ -446,7 +454,9 @@ def _crear_botones_accion(
             "ngestion": int(inputs["ngestion"].value or 0),
             "fecha": str(inputs["fecha"].value),
             "cliente": inputs["cliente"].value or "",
-            "dominio": inputs["dominio"].value or "",
+            "dominio": (inputs["dominio"].value or "")
+            .upper()
+            .replace(" ", ""),
             "poliza": inputs["poliza"].value,
             "tipo": inputs["tipo"].value,
             "motivo": inputs["motivo"].value or "",
@@ -454,7 +464,7 @@ def _crear_botones_accion(
             "usuariocarga": inputs["usuariocarga"].value or "",
             "usuariorespuesta": inputs["usuariorespuesta"].value
             or "",
-            "estado": int(inputs["estado"].value or 0),
+            "estado": inputs["estado"].value or "",
             "itr": int(inputs["itr"].value or 0),
             "totalfactura": float(
                 inputs["totalfactura"].value or 0

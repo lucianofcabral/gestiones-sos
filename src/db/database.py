@@ -508,6 +508,13 @@ class SQLiteDB:
         rows = self.cursor.fetchall()
         return [dict(row).get("formapago", "") for row in rows]
 
+    def obtener_estados(self) -> list[str]:
+        self.cursor.execute(
+            "SELECT DISTINCT estado FROM gestiones WHERE estado IS NOT NULL AND estado != '' ORDER BY estado;"
+        )
+        rows = self.cursor.fetchall()
+        return [dict(row).get("estado", "") for row in rows]
+
     def filter_gestiones(
         self,
         texto_busqueda: str,
@@ -1174,7 +1181,7 @@ class SQLiteDB:
         ncaso: int,
         usuariocarga: str,
         usuariorespuesta: str,
-        estado: int,
+        estado: str,
         itr: int,
         totalfactura: float,
         terminado: int,
@@ -1263,7 +1270,7 @@ class SQLiteDB:
         ncaso: int,
         usuariocarga: str,
         usuariorespuesta: str,
-        estado: int,
+        estado: str,
         itr: int,
         totalfactura: float,
         terminado: int,
@@ -1777,6 +1784,31 @@ class SQLiteDB:
             return [dict(row) for row in result]
         except Exception as e:
             print(f"Error obteniendo documentos: {e}")
+            return []
+
+    def obtener_gestiones_relacionadas_por_documentos(
+        self, gestion_id: int
+    ) -> list[dict]:
+        """Obtiene gestiones que comparten documentos con la gestión dada"""
+        try:
+            query = """
+                SELECT DISTINCT g.*
+                FROM gestiones g
+                INNER JOIN gestion_documento gd ON g.id = gd.gestion_id
+                WHERE gd.documento_id IN (
+                    SELECT documento_id 
+                    FROM gestion_documento 
+                    WHERE gestion_id = :gestion_id
+                )
+                AND g.id != :gestion_id
+                ORDER BY g.fecha DESC, g.id DESC
+            """
+            result = self.cursor.execute(
+                query, {"gestion_id": gestion_id}
+            ).fetchall()
+            return [dict(row) for row in result]
+        except Exception as e:
+            print(f"Error obteniendo gestiones relacionadas: {e}")
             return []
 
     def crear_documento(

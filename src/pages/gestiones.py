@@ -5,6 +5,9 @@ from src.db.connection import get_database
 from src.state import filtros_gestiones
 from src.components.navbar import crear_navbar
 from src.components.dialog_gestion import crear_dialog_gestion
+from src.components.dialog_gestiones_masivas import (
+    crear_dialog_gestiones_masivas,
+)
 
 
 def tabla_gestiones(refresh_callback=None):
@@ -64,7 +67,7 @@ def tabla_gestiones(refresh_callback=None):
             "label": "Dominio",
             "field": "dominio",
             "align": "center",
-            "sortable": True,
+            "sortable": False,
         },
         {
             "name": "poliza",
@@ -85,7 +88,14 @@ def tabla_gestiones(refresh_callback=None):
             "label": "Motivo",
             "field": "motivo",
             "align": "left",
-            "sortable": True,
+            "sortable": False,
+        },
+        {
+            "name": "estado",
+            "label": "Estado",
+            "field": "estado",
+            "align": "left",
+            "sortable": False,
         },
         {
             "name": "totalfactura",
@@ -108,7 +118,7 @@ def tabla_gestiones(refresh_callback=None):
             "label": "Observaciones",
             "field": "obs",
             "align": "left",
-            "sortable": True,
+            "sortable": False,
         },
         {
             "name": "activa",
@@ -167,13 +177,88 @@ def tabla_gestiones(refresh_callback=None):
         gestion = table.selected[0]
         gestion_id = gestion["id"]
 
-        # Crear y abrir el dialog usando el componente modularizado
-        dialog = crear_dialog_gestion(
-            gestion_id=gestion_id,
-            refresh_callback=refresh_callback,
+        # Verificar si hay gestiones relacionadas a través de documentos compartidos
+        db = get_database()
+        gestiones_relacionadas = (
+            db.obtener_gestiones_relacionadas_por_documentos(
+                gestion_id
+            )
         )
-        if dialog:
-            dialog.open()
+
+        if (
+            gestiones_relacionadas
+            and len(gestiones_relacionadas) > 0
+        ):
+            # Hay gestiones relacionadas, preguntar qué hacer
+            def abrir_todas():
+                """Abre dialog para editar todas las gestiones relacionadas"""
+                # Incluir la gestión actual más las relacionadas
+                todas_gestiones = [
+                    dict(gestion)
+                ] + gestiones_relacionadas
+
+                # Abrir dialog en modo edición con todas las gestiones
+                from src.components.dialog_gestiones_masivas import (
+                    crear_dialog_gestiones_masivas,
+                )
+
+                dialog = crear_dialog_gestiones_masivas(
+                    refresh_callback=refresh_callback,
+                    gestiones_existentes=todas_gestiones,
+                )
+                if dialog:
+                    dialog.open()
+                confirmar_dialog.close()
+
+            def abrir_solo_actual():
+                """Abre dialog para editar solo la gestión actual"""
+                dialog = crear_dialog_gestion(
+                    gestion_id=gestion_id,
+                    refresh_callback=refresh_callback,
+                )
+                if dialog:
+                    dialog.open()
+                confirmar_dialog.close()
+
+            # Mostrar diálogo de confirmación
+            confirmar_dialog = ui.dialog()
+            with (
+                confirmar_dialog,
+                ui.card().classes("w-full max-w-md"),
+            ):
+                ui.label("Gestiones Relacionadas").classes(
+                    "text-h6 font-bold mb-4"
+                )
+
+                ui.label(
+                    f"Esta gestión comparte documentos con {len(gestiones_relacionadas)} "
+                    f"otra{'s' if len(gestiones_relacionadas) > 1 else ''}."
+                ).classes("mb-4")
+
+                ui.label("¿Qué desea hacer?").classes("mb-2")
+
+                with ui.row().classes(
+                    "w-full justify-end gap-2 mt-4"
+                ):
+                    ui.button(
+                        "Editar Solo Esta",
+                        on_click=abrir_solo_actual,
+                    ).props("outline color=secondary")
+
+                    ui.button(
+                        f"Editar Todas ({len(gestiones_relacionadas) + 1})",
+                        on_click=abrir_todas,
+                    ).props("color=primary")
+
+            confirmar_dialog.open()
+        else:
+            # No hay gestiones relacionadas, abrir normalmente
+            dialog = crear_dialog_gestion(
+                gestion_id=gestion_id,
+                refresh_callback=refresh_callback,
+            )
+            if dialog:
+                dialog.open()
 
     table.on("selection", lambda: open_gestion())
 
@@ -405,6 +490,20 @@ def page_gestiones():
                     icon="add",
                     on_click=crear_nueva_gestion,
                 ).props("color=primary")
+
+                # Botón para crear múltiples gestiones
+                def crear_multiples_gestiones():
+                    dialog = crear_dialog_gestiones_masivas(
+                        refresh_callback=refresh_tabla,
+                    )
+                    if dialog:
+                        dialog.open()
+
+                ui.button(
+                    "Agregar Múltiples",
+                    icon="playlist_add",
+                    on_click=crear_multiples_gestiones,
+                ).props("color=primary outline")
 
                 # Botón para importar desde Excel
                 ui.button(
