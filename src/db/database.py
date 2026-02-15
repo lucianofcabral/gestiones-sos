@@ -82,6 +82,7 @@ class SQLiteDB:
                 "catDestinatarios"
             )
             pagadores = get_polars_from_table("catPagadores")
+            estados = get_polars_from_table("catEstadoGestiones")
 
             notas = get_polars_from_table("NotasDeCredito")
             gestiones = get_polars_from_table("Gestiones")
@@ -184,10 +185,24 @@ class SQLiteDB:
                     },
                 )
 
+            colorder = gestiones.columns + ["IdGestion3A"]
+
             # gestiones
             gestiones_concatenado = pl.concat(
                 [
-                    gestiones.with_columns(
+                    gestiones.join(
+                        estados.with_columns(
+                            pl.col("Estado")
+                            .str.strip_chars()
+                            .str.to_titlecase()
+                        ),
+                        how="left",
+                        left_on="Estado",
+                        right_on="id",
+                    )
+                    .drop("Estado")
+                    .rename({"Estado_right": "Estado"})
+                    .with_columns(
                         [
                             pl.col("Fecha")
                             .str.to_date(
@@ -211,8 +226,10 @@ class SQLiteDB:
                             .alias("IdGestion3A")
                             .cast(pl.Int64),
                         ]
-                    ),
-                    tres_arr.sort(["Fecha", "NroFactura"]).select(
+                    )
+                    .select(colorder),
+                    tres_arr.sort(["Fecha", "NroFactura"])
+                    .select(
                         [
                             pl.lit(0)
                             .alias("NGestion")
@@ -244,9 +261,9 @@ class SQLiteDB:
                             pl.lit("")
                             .alias("UsuarioRespuesta")
                             .cast(pl.String),
-                            pl.lit(0)
+                            pl.lit("Cerrada")
                             .alias("Estado")
-                            .cast(pl.Int64),
+                            .cast(pl.String),
                             pl.lit(0).alias("ITR").cast(pl.Int64),
                             pl.lit("")
                             .alias("RutaCarpeta")
@@ -269,7 +286,8 @@ class SQLiteDB:
                             .alias("Activa"),
                             pl.col("Id").alias("IdGestion3A"),
                         ]
-                    ),
+                    )
+                    .select(colorder),
                 ]
             )
             gestiones_concatenado = (
@@ -280,10 +298,15 @@ class SQLiteDB:
                     ]
                 )
                 .with_columns(
-                    pl.col("dominio").str.replace_all(" ", "")
+                    [
+                        pl.col("dominio").str.replace_all(
+                            " ", ""
+                        ),
+                    ]
                 )
                 .select(pl.exclude("fechaterminado"))
             )
+
             cols = [
                 c
                 for c in list(gestiones_concatenado.columns)

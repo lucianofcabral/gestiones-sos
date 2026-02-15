@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS gestiones (
     ncaso INTEGER DEFAULT(0) NOT NULL,
     usuariocarga TEXT,
     usuariorespuesta TEXT,
-    estado INTEGER DEFAULT(0) NOT NULL,
+    estado TEXT,
     itr INTEGER DEFAULT(0) NOT NULL,
     totalfactura REAL DEFAULT(0.0) NOT NULL,
     terminado INTEGER DEFAULT(0) NOT NULL,
