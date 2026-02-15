@@ -261,7 +261,7 @@ class SQLiteDB:
                             pl.lit("")
                             .alias("UsuarioRespuesta")
                             .cast(pl.String),
-                            pl.lit("Cerrada")
+                            pl.lit("Cerrado")
                             .alias("Estado")
                             .cast(pl.String),
                             pl.lit(0).alias("ITR").cast(pl.Int64),
@@ -2013,15 +2013,6 @@ class SQLiteDB:
                 ]
             )
 
-            # Mapeo de estados texto → número
-            estados_map = {
-                "RECHAZADO": 0,
-                "CERRADO": 1,
-                "RECLAMADO": 2,
-                "ABIERTO": 3,
-                "": 0,
-            }
-
             estadisticas = {
                 "actualizadas": 0,
                 "insertadas": 0,
@@ -2071,11 +2062,10 @@ class SQLiteDB:
                             "%Y-%m-%d"
                         )
 
-                    # Convertir estado texto a número
-                    estado_texto = (
+                    # Obtener estado como texto
+                    estado = (
                         str(row.get("estado", "")).strip().upper()
                     )
-                    estado = estados_map.get(estado_texto, 0)
 
                     # Limpiar dominio (sin espacios)
                     dominio = (
