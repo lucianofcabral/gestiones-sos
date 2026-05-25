@@ -1,8 +1,15 @@
 import os
 
 from src.adapters.auth import JwtService, PasswordAdapter
-from src.adapters.persistence.inmemory_user_repository import InMemoryUserRepository
+from src.adapters.persistence.postgresql_user_repository import PostgreSQLUserRepository
+from src.domain.ports.repositories import UserRepoPort
 from src.ui.routes.auth import AuthRouter
+
+
+def _build_user_repo() -> UserRepoPort:
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return PostgreSQLUserRepository()
 
 
 class Container:
@@ -13,7 +20,7 @@ class Container:
         if not jwt_secret:
             raise RuntimeError("JWT_SECRET environment variable is not set")
 
-        self._user_repo = InMemoryUserRepository()
+        self._user_repo = _build_user_repo()
         self._password_adapter = PasswordAdapter()
         self._jwt_service = JwtService(secret=jwt_secret)
         self._auth_router = AuthRouter(
@@ -29,19 +36,19 @@ class Container:
         return cls._instance
 
     @property
-    def user_repo(self):
+    def user_repo(self) -> UserRepoPort:
         return self._user_repo
 
     @property
-    def password_adapter(self):
+    def password_adapter(self) -> PasswordAdapter:
         return self._password_adapter
 
     @property
-    def jwt_service(self):
+    def jwt_service(self) -> JwtService:
         return self._jwt_service
 
     @property
-    def auth_router(self):
+    def auth_router(self) -> AuthRouter:
         return self._auth_router
 
 
