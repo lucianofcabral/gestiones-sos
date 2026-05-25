@@ -13,10 +13,10 @@ metadata = sa.MetaData()
 users = sa.Table(
     "users",
     metadata,
-    sa.Column("user_id",       sa.UUID,          primary_key=True),
-    sa.Column("user_name",     sa.String(255),   nullable=False),
-    sa.Column("user_email",    sa.String(255),   nullable=False, unique=True),
-    sa.Column("password_hash", sa.String(255),   nullable=False),
-    sa.Column("active",        sa.Boolean,       nullable=False, server_default="true"),
-    sa.Column("created_at",    sa.DateTime,      nullable=False, server_default=sa.func.now()),
+    sa.Column("user_id", sa.UUID, primary_key=True),
+    sa.Column("user_name", sa.String(255), nullable=False),
+    sa.Column("user_email", sa.String(255), nullable=False, unique=True),
+    sa.Column("password_hash", sa.String(255), nullable=False),
+    sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
 )
