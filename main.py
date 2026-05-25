@@ -1,18 +1,18 @@
-"""
-Punto de entrada principal de la aplicación Gestiones SOS
-"""
-
 from nicegui import ui
-from src.config import APP_TITLE, APP_PORT
 
-# Importar páginas (esto registra automáticamente las rutas)
-import src.pages
+from src.infrastructure.container import get_container
+from src.ui.routes.auth import create_auth_routes
 
-# Iniciar aplicación
-ui.run(
-    title=APP_TITLE,
-    port=APP_PORT,
-    reload=True,
-    show=True,
-    dark=True,
-)
+container = get_container()
+create_auth_routes(container.auth_router)
+
+
+@ui.page("/")
+def main():
+    ui.label("Gestiones SOS")
+    ui.markdown("## Welcome to Gestiones SOS")
+    ui.label("API Authentication endpoints available at /api/auth/*")
+
+
+if __name__ in {"__main__", "__mp_main__"}:
+    ui.run(title="Gestiones SOS", port=8080, reload=False)
