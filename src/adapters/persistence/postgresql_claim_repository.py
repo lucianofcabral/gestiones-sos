@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from typing import Any
 from uuid import UUID
 
@@ -9,7 +10,23 @@ from src.infrastructure.database.tables import claims
 
 
 class PostgreSQLClaimRepository:
-    """Implementación de ClaimRepoPort usando SQLAlchemy Core + PostgreSQL."""
+    """Implementación de ClaimRepoPort usando SQLAlchemy Core + PostgreSQL.
+
+    Si se construye con ``conn``, opera dentro de una transacción externa (UoW).
+    Sin ``conn`` abre y cierra su propia conexión en cada método.
+    """
+
+    def __init__(self, conn: sa.Connection | None = None) -> None:
+        self._conn = conn
+
+    @contextmanager
+    def _get_conn(self):
+        if self._conn is not None:
+            yield self._conn          # transacción externa: no hacer commit aquí
+        else:
+            with get_connection() as c:
+                yield c
+                c.commit()
 
     # ── helper ────────────────────────────────────────────────────────────────
 
@@ -32,7 +49,7 @@ class PostgreSQLClaimRepository:
     # ── BaseRepo ──────────────────────────────────────────────────────────────
 
     def add(self, model: Claim) -> Claim:
-        with get_connection() as conn:
+        with self._get_conn() as conn:
             conn.execute(
                 sa.insert(claims).values(
                     claim_id=model.claim_id,
@@ -48,23 +65,21 @@ class PostgreSQLClaimRepository:
                     created_at=model.created_at,
                 )
             )
-            conn.commit()
         return model
 
     def get_by_id(self, id: UUID) -> Claim | None:
-        with get_connection() as conn:
+        with self._get_conn() as conn:
             row = conn.execute(
                 sa.select(claims).where(claims.c.claim_id == id)
             ).fetchone()
         return self._row_to_claim(row) if row else None
 
     def delete(self, id: UUID) -> None:
-        with get_connection() as conn:
+        with self._get_conn() as conn:
             conn.execute(sa.delete(claims).where(claims.c.claim_id == id))
-            conn.commit()
 
     def update(self, id: UUID, model: Claim) -> bool:
-        with get_connection() as conn:
+        with self._get_conn() as conn:
             result = conn.execute(
                 sa.update(claims)
                 .where(claims.c.claim_id == id)
@@ -78,24 +93,23 @@ class PostgreSQLClaimRepository:
                     active=model.active,
                 )
             )
-            conn.commit()
         return result.rowcount > 0
 
     def get_all(self) -> list[Claim]:
-        with get_connection() as conn:
+        with self._get_conn() as conn:
             rows = conn.execute(sa.select(claims)).fetchall()
         return [self._row_to_claim(r) for r in rows]
 
     def exists(self, data: dict[str, Any]) -> bool:
         conditions = [claims.c[k] == v for k, v in data.items()]
-        with get_connection() as conn:
+        with self._get_conn() as conn:
             row = conn.execute(
                 sa.select(claims.c.claim_id).where(sa.and_(*conditions))
             ).fetchone()
         return row is not None
 
     def get_by_ids(self, ids: list[UUID]) -> list[Claim]:
-        with get_connection() as conn:
+        with self._get_conn() as conn:
             rows = conn.execute(
                 sa.select(claims).where(claims.c.claim_id.in_(ids))
             ).fetchall()
@@ -104,19 +118,17 @@ class PostgreSQLClaimRepository:
     # ── _Activatable ──────────────────────────────────────────────────────────
 
     def activate(self, id: UUID) -> bool:
-        with get_connection() as conn:
+        with self._get_conn() as conn:
             result = conn.execute(
                 sa.update(claims).where(claims.c.claim_id == id).values(active=True)
             )
-            conn.commit()
         return result.rowcount > 0
 
     def inactivate(self, id: UUID) -> bool:
-        with get_connection() as conn:
+        with self._get_conn() as conn:
             result = conn.execute(
                 sa.update(claims).where(claims.c.claim_id == id).values(active=False)
             )
-            conn.commit()
         return result.rowcount > 0
 
     # ── _DocReachable ─────────────────────────────────────────────────────────
@@ -132,7 +144,7 @@ class PostgreSQLClaimRepository:
 
     def get_by_text_like(self, text: str) -> Claim | None:
         pattern = f"%{text}%"
-        with get_connection() as conn:
+        with self._get_conn() as conn:
             row = conn.execute(
                 sa.select(claims).where(
                     sa.or_(

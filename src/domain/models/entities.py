@@ -7,8 +7,19 @@ from pydantic import BaseModel, EmailStr, Field
 from src.domain.enums import DocumentTypeEnum
 
 _MESES_ES = [
-    "", "enero", "febrero", "marzo", "abril", "mayo", "junio",
-    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+    "",
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
 ]
 
 
@@ -107,8 +118,8 @@ class Claim(BaseModel):
     plate: str = Field(min_length=6)
     claimed_amount: float = Field(0, ge=0)
     comment: str = Field("", max_length=255)
-    solved: bool = Field(False)
-    active: bool = Field(default=True)
+    solved: bool = False
+    active: bool = True
     created_at: datetime = Field(default_factory=datetime.now)
 
 
