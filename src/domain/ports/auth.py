@@ -1,0 +1,16 @@
+from typing import Protocol
+from uuid import UUID
+
+
+class PasswordPort(Protocol):
+    def verify_password(self, plain: str, hashed: str) -> bool: ...
+
+    def hash_password(self, plain: str) -> str: ...
+
+
+class TokenPort(Protocol):
+    def create_token(self, user_id: UUID) -> str: ...
+
+    def verify_token(self, token: str) -> UUID | None: ...
+
+    def invalidate_token(self, token: str) -> None: ...
