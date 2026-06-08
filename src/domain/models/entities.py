@@ -149,6 +149,7 @@ class Payment(BaseModel):
     payment_via_id: UUID = Field(default_factory=uuid4)
     payee_id: UUID = Field(default_factory=uuid4)
     amount: float = Field(0, ge=0)
+    active: bool = True
     created_date: datetime = Field(default_factory=datetime.now)
 
 
@@ -157,4 +158,5 @@ class CreditNote(BaseModel):
     payment_id: UUID = Field(default_factory=uuid4)
     period_id: UUID = Field(default_factory=uuid4)
     delivered: bool = Field(False)
+    active: bool = True
     created_date: datetime = Field(default_factory=datetime.now)

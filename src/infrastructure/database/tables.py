@@ -60,3 +60,27 @@ sos_claims = sa.Table(
     sa.Column("itr", sa.Integer, nullable=False, server_default="0"),
     sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
 )
+
+payments = sa.Table(
+    "payments",
+    metadata,
+    sa.Column("payment_id", sa.UUID, primary_key=True),
+    sa.Column("claim_id", sa.UUID, sa.ForeignKey("claims.claim_id"), nullable=False),
+    sa.Column("payer_id", sa.UUID, nullable=False),
+    sa.Column("payee_id", sa.UUID, nullable=False),
+    sa.Column("payment_via_id", sa.UUID, nullable=False),
+    sa.Column("amount", sa.Numeric(12, 2), nullable=False, server_default="0"),
+    sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
+    sa.Column("created_date", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)
+
+nc_payments = sa.Table(
+    "nc_payments",
+    metadata,
+    sa.Column("nc_payment_id", sa.UUID, primary_key=True),
+    sa.Column("payment_id", sa.UUID, sa.ForeignKey("payments.payment_id"), nullable=False),
+    sa.Column("period_id", sa.UUID, sa.ForeignKey("periods.period_id"), nullable=False),
+    sa.Column("delivered", sa.Boolean, nullable=False, server_default="false"),
+    sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
+    sa.Column("created_date", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)
