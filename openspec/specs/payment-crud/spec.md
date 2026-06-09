@@ -100,3 +100,19 @@ The system MUST return whether a Payment has no NcPayment references, making it 
 - GIVEN an NcPayment references this `payment_id`
 - WHEN `inactivatable(payment_id)` is called
 - THEN the system returns `False`
+
+### Requirement: Get Payments by Claim ID
+
+The system MUST return all Payments (active and inactive) that reference a given `claim_id`.
+
+#### Scenario: Payments exist for claim
+
+- GIVEN one or more Payments reference a `claim_id`
+- WHEN `get_by_claim_id(claim_id)` is called
+- THEN the system returns the matching Payments
+
+#### Scenario: No payments for claim
+
+- GIVEN no Payments reference the given `claim_id`
+- WHEN `get_by_claim_id(claim_id)` is called
+- THEN the system returns an empty list

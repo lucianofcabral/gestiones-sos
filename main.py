@@ -1,19 +1,45 @@
 import os
 
-from nicegui import ui
+from nicegui import app, ui
 
 from src.infrastructure.container import get_container
+from src.ui.pages.gestiones import register_gestiones_page
+from src.ui.pages.gestiones_detalle import register_gestiones_detalle_page
+from src.ui.pages.gestiones_nueva import register_gestiones_nueva_page
 from src.ui.pages.home import register_home_page
 from src.ui.pages.login import register_login_page
+from src.ui.pages.pagos import register_pagos_page
+from src.ui.pages.periodos import register_periodos_page
 from src.ui.pages.register import register_register_page
+from src.ui.pages.reportes import register_reportes_page
 from src.ui.routes.auth import create_auth_routes
 
+# ── Dark theme CSS overrides ─────────────────────────────────────────────────
+ui.add_head_html(
+    """
+<style>
+body { background-color: #1a1a2e !important; color: #e0e0e0; }
+.q-header { background-color: #16213e !important; }
+.q-drawer { background-color: #0f3460 !important; }
+</style>
+""",
+    shared=True,
+)
+
+# ── Auth routes ──────────────────────────────────────────────────────────────
 container = get_container()
 create_auth_routes(container.auth_router)
 
+# ── Page registrations ────────────────────────────────────────────────────────
 register_login_page()
 register_register_page()
 register_home_page()
+register_gestiones_page()
+register_gestiones_nueva_page()
+register_gestiones_detalle_page()
+register_pagos_page()
+register_periodos_page()
+register_reportes_page()
 
 
 if __name__ in {"__main__", "__mp_main__"}:

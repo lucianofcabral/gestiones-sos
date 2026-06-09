@@ -1,62 +1,78 @@
-from nicegui import app, ui
+"""Home page — metrics dashboard with total claims, recent claims, and stat cards."""
 
-from src.ui.components.navbar import crear_navbar
+from nicegui import ui
+
+from src.domain.models.entities import Claim, Payment
+from src.infrastructure.container import Container
+from src.ui.components.shell import AppShell
 
 
 def register_home_page() -> None:
     @ui.page("/")
     def home_page() -> None:
-        if not app.storage.user.get("token"):
-            ui.navigate.to("/login")
-            return
+        with AppShell():
+            container = Container.get_instance()
 
-        crear_navbar()
+            claims = container.claim_repo.get_all()
+            payments = container.payment_repo.get_all()
+            periods = container.period_repo.get_n_last(1)
 
-        with ui.column().classes("p-8 w-full max-w-4xl mx-auto gap-6"):
-            with ui.row().classes("items-center gap-2"):
-                ui.label(
-                    f"Bienvenido, {app.storage.user.get('user_name', '')} 👋"
-                ).classes("text-2xl font-bold text-blue-800")
-
-            ui.separator()
-
-            ui.label("Módulos disponibles").classes(
-                "text-lg font-semibold text-gray-600"
-            )
-
-            with ui.row().classes("gap-4 flex-wrap"):
-                _module_card(
-                    "Gestiones",
-                    "assignment",
-                    "Siniestros y gestiones",
-                    "blue",
-                    "/gestiones",
-                )
-                _module_card("Pagos", "payments", "Control de pagos", "green", "/pagos")
-                _module_card(
-                    "Períodos",
-                    "calendar_month",
-                    "Gestión de períodos",
-                    "orange",
-                    "/periodos",
-                )
-                _module_card(
-                    "Reportes",
-                    "bar_chart",
-                    "Estadísticas y análisis",
-                    "purple",
-                    "/reportes",
-                )
+            _render_metrics(claims, payments, periods)
 
 
-def _module_card(title: str, icon: str, subtitle: str, color: str, path: str) -> None:
-    with (
-        ui.card()
-        .classes(
-            f"w-44 h-44 cursor-pointer shadow-md hover:shadow-xl transition-shadow rounded-xl items-center justify-center gap-2"
-        )
-        .on("click", lambda p=path: ui.navigate.to(p))
-    ):
-        ui.icon(icon, size="2.5rem", color=f"{color}-7")
-        ui.label(title).classes("text-base font-bold text-gray-800")
-        ui.label(subtitle).classes("text-xs text-gray-500 text-center")
+def _render_metrics(
+    claims: list[Claim],
+    payments: list[Payment],
+    periods: list,
+) -> None:
+    with ui.column().classes("p-8 w-full max-w-5xl mx-auto gap-8"):
+        # ── Total claims counter ───────────────────────────────────────────────
+        with ui.card().classes("w-full p-6"):
+            ui.label("Total Siniestros").classes("text-sm text-gray-400 uppercase tracking-wide")
+            ui.label(str(len(claims))).classes("text-4xl font-bold")
+
+        # ── Recent 5 claims ────────────────────────────────────────────────────
+        ui.label("Últimos Siniestros").classes("text-lg font-semibold")
+
+        sorted_claims = sorted(
+            claims, key=lambda c: c.created_at, reverse=True
+        )[:5]
+
+        if sorted_claims:
+            columns = [
+                {"name": "claimer", "label": "Reclamante", "field": "claimer", "align": "left"},
+                {"name": "policy", "label": "Póliza", "field": "policy", "align": "left"},
+                {"name": "plate", "label": "Patente", "field": "plate", "align": "left"},
+                {"name": "date", "label": "Fecha", "field": "date", "align": "left"},
+            ]
+            rows = [
+                {
+                    "claimer": c.claimer_name,
+                    "policy": c.policy_number,
+                    "plate": c.plate,
+                    "date": c.created_at.strftime("%d/%m/%Y"),
+                }
+                for c in sorted_claims
+            ]
+            ui.table(columns=columns, rows=rows, row_key="claimer").classes("w-full")
+        else:
+            ui.label("No hay siniestros registrados.").classes("text-gray-400 italic")
+
+        # ── Stat cards ─────────────────────────────────────────────────────────
+        pending_sos = sum(1 for c in claims if not c.solved)
+        active_payments = sum(1 for p in payments if p.active)
+        current_period = periods[0].period_name if periods else "—"
+
+        with ui.row().classes("gap-4 w-full"):
+            _stat_card("Pendientes SOS", str(pending_sos), "warning")
+            _stat_card("Pagos Activos", str(active_payments), "payments")
+            _stat_card("Período Actual", current_period, "calendar_month")
+
+
+def _stat_card(title: str, value: str, icon_name: str) -> None:
+    with ui.card().classes("flex-1 min-w-40 p-4"):
+        with ui.row().classes("items-center gap-3"):
+            ui.icon(icon_name, size="2rem")
+            with ui.column().classes("gap-0"):
+                ui.label(title).classes("text-xs text-gray-400 uppercase tracking-wide")
+                ui.label(value).classes("text-2xl font-bold")

@@ -1,8 +1,20 @@
+"""DEPRECATED — Top navigation bar.
+
+This module is deprecated. Use `src.ui.components.shell.AppShell` instead,
+which provides the same header + sidebar functionality within a context manager.
+
+The content here is kept for reference and backward compatibility.
+"""
+
 from nicegui import app, ui
 
 
 def crear_navbar(titulo: str = "Gestiones SOS") -> None:
-    """Top navigation bar with title and logout button."""
+    """Top navigation bar with title and logout button.
+
+    .. deprecated::
+        Use ``with AppShell():`` from :mod:`src.ui.components.shell` instead.
+    """
     with ui.header().classes(
         "bg-blue-700 text-white items-center justify-between px-6 py-3"
     ):

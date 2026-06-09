@@ -13,3 +13,4 @@ scripts/
 
 # Virtual environments
 .venv
+.nicegui/
