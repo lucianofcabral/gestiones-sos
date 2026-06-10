@@ -4,15 +4,36 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from pydantic import ValidationError
 
+from src.adapters.persistence.inmemory_claim_repository import (
+    InMemoryClaimRepository,
+)
 from src.adapters.persistence.inmemory_ncpayment_repository import (
     InMemoryNcPaymentRepository,
 )
 from src.adapters.persistence.inmemory_payment_repository import (
     InMemoryPaymentRepository,
 )
-from src.domain.models.entities import Agent, CreditNote, Invoice, Payment, PaymentVia
+from src.domain.models.entities import (
+    Agent,
+    Claim,
+    CreditNote,
+    Invoice,
+    Payment,
+    PaymentVia,
+)
+from src.domain.services.can_activate_payment import CanActivatePaymentService
 from src.domain.services.can_inactivate_payment import CanInactivatePaymentService
+from src.domain.services.payment_update_rules import PaymentUpdateRules
+from src.application.use_cases.payments.activar_pago import (
+    ActivarPago,
+    ActivarPagoInput,
+)
+from src.application.use_cases.payments.actualizar_pago import (
+    ActualizarPago,
+    ActualizarPagoInput,
+)
 from src.application.use_cases.payments.registrar_pago import (
     RegistrarPago,
     RegistrarPagoInput,
@@ -708,14 +729,16 @@ def test_delete_claim_with_active_payments_raises(
 
     claim_repo = InMemoryClaimRepository()
     claim_id = uuid4()
-    claim_repo.add(Claim(
-        claim_id=claim_id,
-        claim_kind_id=uuid4(),
-        group_id=uuid4(),
-        claimer_name="Test",
-        policy_number="POL-001",
-        plate="ABC-123",
-    ))
+    claim_repo.add(
+        Claim(
+            claim_id=claim_id,
+            claim_kind_id=uuid4(),
+            group_id=uuid4(),
+            claimer_name="Test",
+            policy_number="POL-001",
+            plate="ABC-123",
+        )
+    )
     # Seed an active payment for this claim
     payment_repo.add(_payment(claim_id=claim_id, active=True))
     use_case = EliminarGestionSOS(claim_repo, payment_repo)
@@ -739,14 +762,16 @@ def test_delete_claim_with_inactive_payments_succeeds(
 
     claim_repo = InMemoryClaimRepository()
     claim_id = uuid4()
-    claim_repo.add(Claim(
-        claim_id=claim_id,
-        claim_kind_id=uuid4(),
-        group_id=uuid4(),
-        claimer_name="Test",
-        policy_number="POL-001",
-        plate="ABC-123",
-    ))
+    claim_repo.add(
+        Claim(
+            claim_id=claim_id,
+            claim_kind_id=uuid4(),
+            group_id=uuid4(),
+            claimer_name="Test",
+            policy_number="POL-001",
+            plate="ABC-123",
+        )
+    )
     # Seed an inactive payment — should not block
     payment_repo.add(_payment(claim_id=claim_id, active=False))
     use_case = EliminarGestionSOS(claim_repo, payment_repo)
@@ -921,9 +946,7 @@ def test_inactivar_nc_not_found(
     inactivar_nc: InactivarNotaCredito,
 ) -> None:
     """Not found: returns success=False."""
-    result = inactivar_nc.execute(
-        InactivarNotaCreditoInput(nc_payment_id=uuid4())
-    )
+    result = inactivar_nc.execute(InactivarNotaCreditoInput(nc_payment_id=uuid4()))
     assert result.success is False
 
 
@@ -935,9 +958,7 @@ def test_activar_nc_success(
     nc = _credit_note(active=False)
     nc_payment_repo.add(nc)
 
-    result = activar_nc.execute(
-        ActivarNotaCreditoInput(nc_payment_id=nc.nc_payment_id)
-    )
+    result = activar_nc.execute(ActivarNotaCreditoInput(nc_payment_id=nc.nc_payment_id))
 
     assert result.success is True
     stored = nc_payment_repo.get_by_id(nc.nc_payment_id)
@@ -949,7 +970,251 @@ def test_activar_nc_not_found(
     activar_nc: ActivarNotaCredito,
 ) -> None:
     """Not found: returns success=False."""
-    result = activar_nc.execute(
-        ActivarNotaCreditoInput(nc_payment_id=uuid4())
-    )
+    result = activar_nc.execute(ActivarNotaCreditoInput(nc_payment_id=uuid4()))
     assert result.success is False
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Phase 6 — PaymentUpdateRules (domain service)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@pytest.fixture
+def claim_repo() -> InMemoryClaimRepository:
+    return InMemoryClaimRepository()
+
+
+@pytest.fixture
+def payment_update_rules(
+    nc_payment_repo: InMemoryNcPaymentRepository,
+    payment_via_repo: InMemoryPaymentViaRepository,
+) -> PaymentUpdateRules:
+    return PaymentUpdateRules(nc_payment_repo, payment_via_repo)
+
+
+@pytest.fixture
+def can_activate_svc(
+    claim_repo: InMemoryClaimRepository,
+) -> CanActivatePaymentService:
+    return CanActivatePaymentService(claim_repo)
+
+
+@pytest.fixture
+def actualizar_pago(
+    payment_repo: InMemoryPaymentRepository,
+    payment_update_rules: PaymentUpdateRules,
+) -> ActualizarPago:
+    return ActualizarPago(payment_repo, payment_update_rules)
+
+
+@pytest.fixture
+def activar_pago(
+    payment_repo: InMemoryPaymentRepository,
+    can_activate_svc: CanActivatePaymentService,
+) -> ActivarPago:
+    return ActivarPago(payment_repo, can_activate_svc)
+
+
+# ── 4.1 Entity validation ────────────────────────────────────────────────────
+
+
+def test_payment_amount_must_be_positive() -> None:
+    """Payment(amount=0) raises Pydantic ValidationError."""
+    with pytest.raises(ValidationError):
+        Payment(
+            payment_id=uuid4(),
+            claim_id=uuid4(),
+            payer_id=uuid4(),
+            payee_id=uuid4(),
+            payment_via_id=uuid4(),
+            amount=0,
+        )
+
+
+# ── 4.2–4.4 PaymentUpdateRules ────────────────────────────────────────────────
+
+
+def test_update_rules_rejects_change_to_nc_via_when_no_nc(
+    payment_update_rules: PaymentUpdateRules,
+    payment_repo: InMemoryPaymentRepository,
+    payment_via_repo: InMemoryPaymentViaRepository,
+) -> None:
+    """No NC exists → changing to NC via raises ValueError."""
+    payment = _payment()
+    payment_repo.add(payment)
+    nc_via = _seed_nc_via(payment_via_repo)
+
+    with pytest.raises(ValueError, match="Credit Note"):
+        payment_update_rules.validate(
+            payment_id=payment.payment_id,
+            payment_via_id=nc_via.payment_via_id,
+        )
+
+
+def test_update_rules_rejects_non_amount_field_when_nc_exists(
+    payment_update_rules: PaymentUpdateRules,
+    payment_repo: InMemoryPaymentRepository,
+    nc_payment_repo: InMemoryNcPaymentRepository,
+    payment_via_repo: InMemoryPaymentViaRepository,
+) -> None:
+    """NC exists → changing a non-amount field raises ValueError."""
+    payment = _payment()
+    payment_repo.add(payment)
+    nc_payment_repo.add(
+        CreditNote(
+            nc_payment_id=uuid4(),
+            payment_id=payment.payment_id,
+            period_id=uuid4(),
+        )
+    )
+
+    with pytest.raises(ValueError, match="Only amount"):
+        payment_update_rules.validate(
+            payment_id=payment.payment_id,
+            payer_id=uuid4(),
+        )
+
+
+def test_update_rules_allows_amount_only_when_nc_exists(
+    payment_update_rules: PaymentUpdateRules,
+    payment_repo: InMemoryPaymentRepository,
+    nc_payment_repo: InMemoryNcPaymentRepository,
+) -> None:
+    """NC exists → changing only amount is allowed (no error)."""
+    payment = _payment(amount=1000.0)
+    payment_repo.add(payment)
+    nc_payment_repo.add(
+        CreditNote(
+            nc_payment_id=uuid4(),
+            payment_id=payment.payment_id,
+            period_id=uuid4(),
+        )
+    )
+
+    # Should not raise
+    payment_update_rules.validate(
+        payment_id=payment.payment_id,
+        amount=2000.0,
+    )
+
+
+# ── 4.5–4.6 CanActivatePaymentService ─────────────────────────────────────────
+
+
+def test_can_activate_claim_active(
+    can_activate_svc: CanActivatePaymentService,
+    claim_repo: InMemoryClaimRepository,
+) -> None:
+    """Returns (True, ...) when the claim is active."""
+    claim = Claim(
+        claim_id=uuid4(),
+        claim_kind_id=uuid4(),
+        group_id=uuid4(),
+        claimer_name="Test",
+        policy_number="POL-001",
+        plate="ABC-123",
+        active=True,
+    )
+    claim_repo.add(claim)
+    payment = _payment(claim_id=claim.claim_id)
+
+    can, reason = can_activate_svc.execute(payment)
+
+    assert can is True
+    assert "active" in reason
+
+
+def test_can_activate_claim_inactive(
+    can_activate_svc: CanActivatePaymentService,
+    claim_repo: InMemoryClaimRepository,
+) -> None:
+    """Returns (False, ...) when the claim is inactive."""
+    claim = Claim(
+        claim_id=uuid4(),
+        claim_kind_id=uuid4(),
+        group_id=uuid4(),
+        claimer_name="Test",
+        policy_number="POL-001",
+        plate="ABC-123",
+        active=False,
+    )
+    claim_repo.add(claim)
+    payment = _payment(claim_id=claim.claim_id)
+
+    can, reason = can_activate_svc.execute(payment)
+
+    assert can is False
+    assert "not active" in reason
+
+
+# ── 4.7–4.8 ActualizarPago ────────────────────────────────────────────────────
+
+
+def test_actualizar_pago_happy(
+    actualizar_pago: ActualizarPago,
+    payment_repo: InMemoryPaymentRepository,
+) -> None:
+    """Happy path: update amount, success=True, repo updated."""
+    payment = _payment(amount=1000.0)
+    payment_repo.add(payment)
+
+    result = actualizar_pago.execute(
+        ActualizarPagoInput(
+            payment_id=payment.payment_id,
+            amount=2500.0,
+        )
+    )
+
+    assert result.success is True
+    stored = payment_repo.get_by_id(payment.payment_id)
+    assert stored is not None
+    assert stored.amount == 2500.0
+
+
+def test_actualizar_pago_not_found(
+    actualizar_pago: ActualizarPago,
+) -> None:
+    """Non-existent payment → success=False."""
+    result = actualizar_pago.execute(ActualizarPagoInput(payment_id=uuid4()))
+    assert result.success is False
+
+
+# ── 4.9–4.10 ActivarPago ──────────────────────────────────────────────────────
+
+
+def test_activar_pago_happy(
+    activar_pago: ActivarPago,
+    payment_repo: InMemoryPaymentRepository,
+    claim_repo: InMemoryClaimRepository,
+) -> None:
+    """Happy path: activate an inactive payment with active claim."""
+    claim = Claim(
+        claim_id=uuid4(),
+        claim_kind_id=uuid4(),
+        group_id=uuid4(),
+        claimer_name="Test",
+        policy_number="POL-001",
+        plate="ABC-123",
+        active=True,
+    )
+    claim_repo.add(claim)
+    payment = _payment(claim_id=claim.claim_id, active=False)
+    payment_repo.add(payment)
+
+    result = activar_pago.execute(ActivarPagoInput(payment_id=payment.payment_id))
+
+    assert result.success is True
+    assert result.payment_id == payment.payment_id
+    stored = payment_repo.get_by_id(payment.payment_id)
+    assert stored is not None
+    assert stored.active is True
+
+
+def test_activar_pago_not_found(
+    activar_pago: ActivarPago,
+) -> None:
+    """Non-existent payment → success=False."""
+    result = activar_pago.execute(ActivarPagoInput(payment_id=uuid4()))
+
+    assert result.success is False
+    assert "not found" in result.reason

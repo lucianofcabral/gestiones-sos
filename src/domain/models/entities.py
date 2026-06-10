@@ -148,7 +148,7 @@ class Payment(BaseModel):
     payer_id: UUID = Field(default_factory=uuid4)
     payment_via_id: UUID = Field(default_factory=uuid4)
     payee_id: UUID = Field(default_factory=uuid4)
-    amount: float = Field(0, ge=0)
+    amount: float = Field(gt=0)
     active: bool = True
     created_date: datetime = Field(default_factory=datetime.now)
 
