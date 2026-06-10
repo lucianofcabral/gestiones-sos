@@ -71,16 +71,22 @@ payments = sa.Table(
     sa.Column("payment_via_id", sa.UUID, nullable=False),
     sa.Column("amount", sa.Numeric(12, 2), nullable=False, server_default="0"),
     sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
-    sa.Column("created_date", sa.DateTime, nullable=False, server_default=sa.func.now()),
+    sa.Column(
+        "created_date", sa.DateTime, nullable=False, server_default=sa.func.now()
+    ),
 )
 
 nc_payments = sa.Table(
     "nc_payments",
     metadata,
     sa.Column("nc_payment_id", sa.UUID, primary_key=True),
-    sa.Column("payment_id", sa.UUID, sa.ForeignKey("payments.payment_id"), nullable=False),
+    sa.Column(
+        "payment_id", sa.UUID, sa.ForeignKey("payments.payment_id"), nullable=False
+    ),
     sa.Column("period_id", sa.UUID, sa.ForeignKey("periods.period_id"), nullable=False),
     sa.Column("delivered", sa.Boolean, nullable=False, server_default="false"),
     sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
-    sa.Column("created_date", sa.DateTime, nullable=False, server_default=sa.func.now()),
+    sa.Column(
+        "created_date", sa.DateTime, nullable=False, server_default=sa.func.now()
+    ),
 )

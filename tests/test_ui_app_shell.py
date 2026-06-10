@@ -17,7 +17,9 @@ from nicegui.storage import Storage  # noqa: E402
 Storage.secret = "test-secret"
 
 from src.adapters.persistence.inmemory_claim_repository import InMemoryClaimRepository  # noqa: E402
-from src.adapters.persistence.inmemory_payment_repository import InMemoryPaymentRepository  # noqa: E402
+from src.adapters.persistence.inmemory_payment_repository import (
+    InMemoryPaymentRepository,
+)  # noqa: E402
 from src.adapters.persistence.inmemory_period_repository import InMemoryPeriodRepository  # noqa: E402
 from src.domain.models.entities import Claim, Payment, Period  # noqa: E402
 from src.ui.components.shell import AppShell  # noqa: E402
@@ -87,6 +89,7 @@ class TestAuthGuard:
             patch("src.ui.components.shell.ui.navigate.to") as mock_nav,
         ):
             import anyio
+
             anyio.run(AppShell._logout)
 
             mock_storage.user.clear.assert_called_once()
@@ -132,7 +135,9 @@ def _seed_claims(repo: InMemoryClaimRepository, n: int) -> list[Claim]:
     return claims
 
 
-def _seed_payments(repo: InMemoryPaymentRepository, active_count: int, inactive_count: int) -> list[Payment]:
+def _seed_payments(
+    repo: InMemoryPaymentRepository, active_count: int, inactive_count: int
+) -> list[Payment]:
     payments = []
     for _ in range(active_count):
         p = Payment(
@@ -274,7 +279,9 @@ class TestHomeMetricsWithContainer:
             patch("src.ui.pages.home.ui.table") as mock_table,
             patch("src.ui.pages.home.ui.icon"),
         ):
-            _render_metrics(claim_repo.get_all(), payment_repo.get_all(), period_repo.get_n_last(1))
+            _render_metrics(
+                claim_repo.get_all(), payment_repo.get_all(), period_repo.get_n_last(1)
+            )
 
         # Should have rendered a table (claims exist)
         mock_table.assert_called_once()
@@ -291,7 +298,9 @@ class TestHomeMetricsWithContainer:
             patch("src.ui.pages.home.ui.table") as mock_table,
             patch("src.ui.pages.home.ui.icon"),
         ):
-            _render_metrics(claim_repo.get_all(), payment_repo.get_all(), period_repo.get_n_last(1))
+            _render_metrics(
+                claim_repo.get_all(), payment_repo.get_all(), period_repo.get_n_last(1)
+            )
 
         # No table rendered (0 claims)
         mock_table.assert_not_called()
@@ -308,12 +317,50 @@ class TestPlaceholderPages:
     @pytest.mark.parametrize(
         "register_fn,route",
         [
-            pytest.param(lambda: __import__("src.ui.pages.gestiones", fromlist=["register_gestiones_page"]).register_gestiones_page(), "/gestiones", id="gestiones"),
-            pytest.param(lambda: __import__("src.ui.pages.gestiones_nueva", fromlist=["register_gestiones_nueva_page"]).register_gestiones_nueva_page(), "/gestiones/nueva", id="gestiones_nueva"),
-            pytest.param(lambda: __import__("src.ui.pages.gestiones_detalle", fromlist=["register_gestiones_detalle_page"]).register_gestiones_detalle_page(), "/gestiones/{id}", id="gestiones_detalle"),
-            pytest.param(lambda: __import__("src.ui.pages.pagos", fromlist=["register_pagos_page"]).register_pagos_page(), "/pagos", id="pagos"),
-            pytest.param(lambda: __import__("src.ui.pages.periodos", fromlist=["register_periodos_page"]).register_periodos_page(), "/periodos", id="periodos"),
-            pytest.param(lambda: __import__("src.ui.pages.reportes", fromlist=["register_reportes_page"]).register_reportes_page(), "/reportes", id="reportes"),
+            pytest.param(
+                lambda: __import__(
+                    "src.ui.pages.gestiones", fromlist=["register_gestiones_page"]
+                ).register_gestiones_page(),
+                "/gestiones",
+                id="gestiones",
+            ),
+            pytest.param(
+                lambda: __import__(
+                    "src.ui.pages.gestiones_nueva",
+                    fromlist=["register_gestiones_nueva_page"],
+                ).register_gestiones_nueva_page(),
+                "/gestiones/nueva",
+                id="gestiones_nueva",
+            ),
+            pytest.param(
+                lambda: __import__(
+                    "src.ui.pages.gestiones_detalle",
+                    fromlist=["register_gestiones_detalle_page"],
+                ).register_gestiones_detalle_page(),
+                "/gestiones/{id}",
+                id="gestiones_detalle",
+            ),
+            pytest.param(
+                lambda: __import__(
+                    "src.ui.pages.pagos", fromlist=["register_pagos_page"]
+                ).register_pagos_page(),
+                "/pagos",
+                id="pagos",
+            ),
+            pytest.param(
+                lambda: __import__(
+                    "src.ui.pages.periodos", fromlist=["register_periodos_page"]
+                ).register_periodos_page(),
+                "/periodos",
+                id="periodos",
+            ),
+            pytest.param(
+                lambda: __import__(
+                    "src.ui.pages.reportes", fromlist=["register_reportes_page"]
+                ).register_reportes_page(),
+                "/reportes",
+                id="reportes",
+            ),
         ],
     )
     def test_placeholder_registers(self, register_fn, route):

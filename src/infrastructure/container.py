@@ -18,6 +18,8 @@ from src.adapters.persistence.sqlalchemy_period_repository import (
 from src.adapters.persistence.sqlalchemy_user_repository import SqlAlchemyUserRepository
 from src.application.use_cases.claims.eliminar_gestion_sos import EliminarGestionSOS
 from src.application.use_cases.payments.activar_nc import ActivarNotaCredito
+from src.application.use_cases.payments.activar_pago import ActivarPago
+from src.application.use_cases.payments.actualizar_pago import ActualizarPago
 from src.application.use_cases.payments.inactivar_nc import InactivarNotaCredito
 from src.application.use_cases.payments.inactivar_pago import InactivarPago
 from src.application.use_cases.payments.marcar_nc_entregada import (
@@ -36,7 +38,9 @@ from src.domain.ports.repositories import (
     PeriodRepoPort,
     UserRepoPort,
 )
+from src.domain.services.can_activate_payment import CanActivatePaymentService
 from src.domain.services.can_inactivate_payment import CanInactivatePaymentService
+from src.domain.services.payment_update_rules import PaymentUpdateRules
 from src.ui.routes.auth import AuthRouter
 
 
@@ -234,6 +238,13 @@ class Container:
             nc_payment_repo=self._nc_payment_repo,
             billing_repo=self._billing_repo,
         )
+        self._payment_update_rules = PaymentUpdateRules(
+            nc_payment_repo=self._nc_payment_repo,
+            payment_via_repo=self._payment_via_repo,
+        )
+        self._can_activate_svc = CanActivatePaymentService(
+            claim_repo=self._claim_repo,
+        )
 
         # Use cases
         self._eliminar_gestion_sos = EliminarGestionSOS(
@@ -250,22 +261,22 @@ class Container:
             payment_repo=self._payment_repo,
             can_inactivate_svc=self._can_inactivate_svc,
         )
+        self._actualizar_pago = ActualizarPago(
+            payment_repo=self._payment_repo,
+            update_rules=self._payment_update_rules,
+        )
+        self._activar_pago = ActivarPago(
+            payment_repo=self._payment_repo,
+            can_activate_svc=self._can_activate_svc,
+        )
         self._obtener_pagos = ObtenerPagos(payment_repo=self._payment_repo)
-        self._registrar_nc = RegistrarNotaCredito(
-            nc_payment_repo=self._nc_payment_repo
-        )
-        self._obtener_ncs = ObtenerNotasCredito(
-            nc_payment_repo=self._nc_payment_repo
-        )
+        self._registrar_nc = RegistrarNotaCredito(nc_payment_repo=self._nc_payment_repo)
+        self._obtener_ncs = ObtenerNotasCredito(nc_payment_repo=self._nc_payment_repo)
         self._marcar_nc_entregada = MarcarNotaCreditoEntregada(
             nc_payment_repo=self._nc_payment_repo
         )
-        self._inactivar_nc = InactivarNotaCredito(
-            nc_payment_repo=self._nc_payment_repo
-        )
-        self._activar_nc = ActivarNotaCredito(
-            nc_payment_repo=self._nc_payment_repo
-        )
+        self._inactivar_nc = InactivarNotaCredito(nc_payment_repo=self._nc_payment_repo)
+        self._activar_nc = ActivarNotaCredito(nc_payment_repo=self._nc_payment_repo)
 
         self._auth_router = AuthRouter(
             user_repo=self._user_repo,
@@ -316,6 +327,14 @@ class Container:
         return self._can_inactivate_svc
 
     @property
+    def payment_update_rules(self) -> PaymentUpdateRules:
+        return self._payment_update_rules
+
+    @property
+    def can_activate_svc(self) -> CanActivatePaymentService:
+        return self._can_activate_svc
+
+    @property
     def eliminar_gestion_sos(self) -> EliminarGestionSOS:
         return self._eliminar_gestion_sos
 
@@ -326,6 +345,14 @@ class Container:
     @property
     def inactivar_pago(self) -> InactivarPago:
         return self._inactivar_pago
+
+    @property
+    def actualizar_pago(self) -> ActualizarPago:
+        return self._actualizar_pago
+
+    @property
+    def activar_pago(self) -> ActivarPago:
+        return self._activar_pago
 
     @property
     def obtener_pagos(self) -> ObtenerPagos:

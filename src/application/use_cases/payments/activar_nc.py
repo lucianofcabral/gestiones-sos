@@ -30,9 +30,7 @@ class ActivarNotaCredito:
     def __init__(self, nc_payment_repo: NcPaymentRepoPort) -> None:
         self._nc_payment_repo = nc_payment_repo
 
-    def execute(
-        self, input_data: ActivarNotaCreditoInput
-    ) -> ActivarNotaCreditoOutput:
+    def execute(self, input_data: ActivarNotaCreditoInput) -> ActivarNotaCreditoOutput:
         """Activate the credit note."""
         result = self._nc_payment_repo.activate(input_data.nc_payment_id)
         return ActivarNotaCreditoOutput(success=result)

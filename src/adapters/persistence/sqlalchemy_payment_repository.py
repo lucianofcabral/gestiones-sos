@@ -154,7 +154,9 @@ class SqlAlchemyPaymentRepository:
         with self._get_conn() as conn:
             rows = conn.execute(
                 sa.select(payments).where(
-                    sa.and_(payments.c.created_date >= start, payments.c.created_date <= end)
+                    sa.and_(
+                        payments.c.created_date >= start, payments.c.created_date <= end
+                    )
                 )
             ).fetchall()
         return [self._row_to_payment(r) for r in rows]
@@ -165,7 +167,9 @@ class SqlAlchemyPaymentRepository:
         with self._get_conn() as conn:
             rows = conn.execute(
                 sa.select(payments).where(
-                    sa.and_(payments.c.amount >= min_amount, payments.c.amount <= max_amount)
+                    sa.and_(
+                        payments.c.amount >= min_amount, payments.c.amount <= max_amount
+                    )
                 )
             ).fetchall()
         return [self._row_to_payment(r) for r in rows]

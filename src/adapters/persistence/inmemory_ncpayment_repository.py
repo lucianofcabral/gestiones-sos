@@ -66,9 +66,7 @@ class InMemoryNcPaymentRepository:
         return False
 
     def get_by_payment_id(self, payment_id: UUID) -> CreditNote | None:
-        return next(
-            (n for n in self._store if n.payment_id == payment_id), None
-        )
+        return next((n for n in self._store if n.payment_id == payment_id), None)
 
     def get_by_period_id(self, period_id: UUID) -> list[CreditNote]:
         return [n for n in self._store if n.period_id == period_id]

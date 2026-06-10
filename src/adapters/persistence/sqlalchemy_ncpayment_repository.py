@@ -95,18 +95,14 @@ class SqlAlchemyNcPaymentRepository:
         conditions = [nc_payments.c[k] == v for k, v in data.items()]
         with self._get_conn() as conn:
             row = conn.execute(
-                sa.select(nc_payments.c.nc_payment_id).where(
-                    sa.and_(*conditions)
-                )
+                sa.select(nc_payments.c.nc_payment_id).where(sa.and_(*conditions))
             ).fetchone()
         return row is not None
 
     def get_by_ids(self, ids: list[UUID]) -> list[CreditNote]:
         with self._get_conn() as conn:
             rows = conn.execute(
-                sa.select(nc_payments).where(
-                    nc_payments.c.nc_payment_id.in_(ids)
-                )
+                sa.select(nc_payments).where(nc_payments.c.nc_payment_id.in_(ids))
             ).fetchall()
         return [self._row_to_nc_payment(r) for r in rows]
 
@@ -147,17 +143,13 @@ class SqlAlchemyNcPaymentRepository:
     def get_by_payment_id(self, payment_id: UUID) -> CreditNote | None:
         with self._get_conn() as conn:
             row = conn.execute(
-                sa.select(nc_payments).where(
-                    nc_payments.c.payment_id == payment_id
-                )
+                sa.select(nc_payments).where(nc_payments.c.payment_id == payment_id)
             ).fetchone()
         return self._row_to_nc_payment(row) if row else None
 
     def get_by_period_id(self, period_id: UUID) -> list[CreditNote]:
         with self._get_conn() as conn:
             rows = conn.execute(
-                sa.select(nc_payments).where(
-                    nc_payments.c.period_id == period_id
-                )
+                sa.select(nc_payments).where(nc_payments.c.period_id == period_id)
             ).fetchall()
         return [self._row_to_nc_payment(r) for r in rows]

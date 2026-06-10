@@ -10,6 +10,4 @@ def register_pagos_page() -> None:
     def pagos_page() -> None:
         with AppShell():
             ui.label("Pagos").classes("text-2xl font-bold")
-            ui.label("Próximamente — control de pagos.").classes(
-                "text-gray-400 mt-2"
-            )
+            ui.label("Próximamente — control de pagos.").classes("text-gray-400 mt-2")

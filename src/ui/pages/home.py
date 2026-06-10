@@ -28,21 +28,36 @@ def _render_metrics(
     with ui.column().classes("p-8 w-full max-w-5xl mx-auto gap-8"):
         # ── Total claims counter ───────────────────────────────────────────────
         with ui.card().classes("w-full p-6"):
-            ui.label("Total Siniestros").classes("text-sm text-gray-400 uppercase tracking-wide")
+            ui.label("Total Siniestros").classes(
+                "text-sm text-gray-400 uppercase tracking-wide"
+            )
             ui.label(str(len(claims))).classes("text-4xl font-bold")
 
         # ── Recent 5 claims ────────────────────────────────────────────────────
         ui.label("Últimos Siniestros").classes("text-lg font-semibold")
 
-        sorted_claims = sorted(
-            claims, key=lambda c: c.created_at, reverse=True
-        )[:5]
+        sorted_claims = sorted(claims, key=lambda c: c.created_at, reverse=True)[:5]
 
         if sorted_claims:
             columns = [
-                {"name": "claimer", "label": "Reclamante", "field": "claimer", "align": "left"},
-                {"name": "policy", "label": "Póliza", "field": "policy", "align": "left"},
-                {"name": "plate", "label": "Patente", "field": "plate", "align": "left"},
+                {
+                    "name": "claimer",
+                    "label": "Reclamante",
+                    "field": "claimer",
+                    "align": "left",
+                },
+                {
+                    "name": "policy",
+                    "label": "Póliza",
+                    "field": "policy",
+                    "align": "left",
+                },
+                {
+                    "name": "plate",
+                    "label": "Patente",
+                    "field": "plate",
+                    "align": "left",
+                },
                 {"name": "date", "label": "Fecha", "field": "date", "align": "left"},
             ]
             rows = [
