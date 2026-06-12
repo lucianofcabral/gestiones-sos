@@ -12,7 +12,7 @@ from src.ui.pages.periodos import register_periodos_page
 from src.ui.pages.register import register_register_page
 from src.ui.pages.reportes import register_reportes_page
 from src.ui.pages.catalogos import register_catalogos_page
-
+from src.ui.pages.documentos import register_documentos_page
 # ── Dark theme CSS overrides ─────────────────────────────────────────────────
 ui.add_head_html(
     """
@@ -36,6 +36,7 @@ register_pagos_page()
 register_periodos_page()
 register_catalogos_page()
 register_reportes_page()
+register_documentos_page()
 
 
 if __name__ in {"__main__", "__mp_main__"}:

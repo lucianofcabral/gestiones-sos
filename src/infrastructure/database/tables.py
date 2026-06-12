@@ -117,3 +117,27 @@ claim_kinds = sa.Table(
     sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
     sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
 )
+
+documents = sa.Table(
+    "documents",
+    metadata,
+    sa.Column("document_id", sa.UUID, primary_key=True),
+    sa.Column("hash", sa.String(64), nullable=False, unique=True),
+    sa.Column("type", sa.String(100), nullable=False),
+    sa.Column("name", sa.String(255), nullable=False),
+    sa.Column("size", sa.Integer, nullable=False),
+    sa.Column("mime", sa.String(100), nullable=False, server_default=""),
+    sa.Column("description", sa.String(500), nullable=False, server_default=""),
+    sa.Column("uploaded_by", sa.UUID, nullable=True),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)
+
+document_entities = sa.Table(
+    "document_entities",
+    metadata,
+    sa.Column("document_id", sa.UUID, nullable=False),
+    sa.Column("entity_type", sa.String(50), nullable=False),
+    sa.Column("entity_id", sa.UUID, nullable=False),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+    sa.UniqueConstraint("document_id", "entity_type", "entity_id", name="uq_doc_entity"),
+)

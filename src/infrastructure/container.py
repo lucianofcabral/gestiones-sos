@@ -2,6 +2,9 @@ import os
 from typing import Any
 from uuid import UUID
 
+from src.adapters.persistence.sqlalchemy_document_repository import (
+    SqlAlchemyDocumentRepository,
+)
 from src.adapters.auth import JwtService, PasswordAdapter
 from src.adapters.persistence.sqlalchemy_agent_repository import (
     SqlAlchemyAgentRepository,
@@ -25,6 +28,9 @@ from src.adapters.persistence.sqlalchemy_period_repository import (
     SqlAlchemyPeriodRepository,
 )
 from src.adapters.persistence.sqlalchemy_user_repository import SqlAlchemyUserRepository
+from src.application.use_cases.documents.subir_documento import SubirDocumento
+from src.application.use_cases.documents.descargar_documento import DescargarDocumento
+from src.application.use_cases.documents.obtener_documentos import ObtenerDocumentos
 from src.application.use_cases.claims.eliminar_gestion_sos import EliminarGestionSOS
 from src.application.use_cases.payments.activar_nc import ActivarNotaCredito
 from src.application.use_cases.payments.activar_pago import ActivarPago
@@ -43,11 +49,13 @@ from src.domain.ports.repositories import (
     BillingRepoPort,
     ClaimKindRepoPort,
     ClaimRepoPort,
+    DocumentRepoPort,
     NcPaymentRepoPort,
     PaymentRepoPort,
     PeriodRepoPort,
     UserRepoPort,
 )
+from src.infrastructure.storage.filesystem_storage import FilesystemStorageService
 from src.domain.services.can_activate_payment import CanActivatePaymentService
 from src.domain.services.can_inactivate_payment import CanInactivatePaymentService
 from src.domain.services.payment_update_rules import PaymentUpdateRules
@@ -105,6 +113,16 @@ def _build_claim_kind_repo():
     return SqlAlchemyClaimKindRepository()
 
 
+def _build_document_repo() -> DocumentRepoPort:
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return SqlAlchemyDocumentRepository()
+
+
+def _build_storage_service() -> FilesystemStorageService:
+    return FilesystemStorageService()
+
+
 # ── Stub repos for dependencies without SQLAlchemy implementations ────────────
 
 
@@ -145,9 +163,6 @@ class _StubBillingRepository:
         return []
 
 
-
-
-
 # ── Container ─────────────────────────────────────────────────────────────────
 
 
@@ -172,6 +187,17 @@ class Container:
         self._agent_repo = _build_agent_repo()
         self._payment_via_repo = _build_payment_via_repo()
         self._claim_kind_repo = _build_claim_kind_repo()
+
+        # Document repos and use cases
+        self._document_repo = _build_document_repo()
+        self._storage_service = _build_storage_service()
+        self._subir_documento = SubirDocumento(
+            self._document_repo, self._storage_service
+        )
+        self._descargar_documento = DescargarDocumento(
+            self._document_repo, self._storage_service
+        )
+        self._obtener_documentos = ObtenerDocumentos(self._document_repo)
 
         # Domain services
         self._can_inactivate_svc = CanInactivatePaymentService(
@@ -265,6 +291,22 @@ class Container:
     @property
     def claim_kind_repo(self) -> ClaimKindRepoPort:
         return self._claim_kind_repo
+
+    @property
+    def document_repo(self) -> DocumentRepoPort:
+        return self._document_repo
+
+    @property
+    def subir_documento(self) -> SubirDocumento:
+        return self._subir_documento
+
+    @property
+    def descargar_documento(self) -> DescargarDocumento:
+        return self._descargar_documento
+
+    @property
+    def obtener_documentos(self) -> ObtenerDocumentos:
+        return self._obtener_documentos
 
     @property
     def password_adapter(self) -> PasswordAdapter:
