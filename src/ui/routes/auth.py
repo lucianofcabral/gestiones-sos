@@ -13,6 +13,7 @@ from src.application.use_cases.auth import (
     RegisterInput,
     RegisterOutput,
 )
+from src.domain.exceptions import InvalidTokenError
 from src.domain.ports.auth import PasswordPort, TokenPort
 from src.domain.ports.repositories import UserRepoPort
 
@@ -41,7 +42,7 @@ class AuthRouter:
     def me(self, token: str) -> MeOutput:
         user_id = self._token_port.verify_token(token)
         if user_id is None:
-            raise ValueError("Invalid token")
+            raise InvalidTokenError("Invalid token")
         return self._me_use_case.execute(user_id)
 
     def logout(self, token: str) -> LogoutOutput:

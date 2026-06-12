@@ -2,6 +2,7 @@
 
 from uuid import UUID
 
+from src.domain.exceptions import InvalidPaymentUpdateError
 from src.domain.ports.repositories import NcPaymentRepoPort, PaymentViaRepoPort
 
 
@@ -39,7 +40,7 @@ class PaymentUpdateRules:
                 or payment_via_id is not None
                 or payee_id is not None
             ):
-                raise ValueError(
+                raise InvalidPaymentUpdateError(
                     "Only amount can be modified when a credit note exists"
                 )
         else:
@@ -47,4 +48,4 @@ class PaymentUpdateRules:
             if payment_via_id is not None:
                 nc_via = self._payment_via_repo.get_nc()
                 if nc_via is not None and payment_via_id == nc_via.payment_via_id:
-                    raise ValueError("Cannot change payment method to Credit Note")
+                    raise InvalidPaymentUpdateError("Cannot change payment method to Credit Note")

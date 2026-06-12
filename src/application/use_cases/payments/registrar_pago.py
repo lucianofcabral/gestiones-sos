@@ -5,6 +5,11 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from src.domain.models.entities import CreditNote, Payment
+from src.domain.exceptions import (
+    AgentNotConfiguredError,
+    InvalidNCConfigurationError,
+    PeriodRequiredError,
+)
 from src.domain.ports.repositories import (
     AgentRepoPort,
     NcPaymentRepoPort,
@@ -77,7 +82,7 @@ class RegistrarPago:
         # If NC, also create the NcPayment (CreditNote)
         if nc_via is not None and input_data.payment_via_id == nc_via.payment_via_id:
             if input_data.period_id is None:
-                raise ValueError("period_id is required for NC payments")
+                raise PeriodRequiredError("period_id is required for NC payments")
             self._nc_payment_repo.add(
                 CreditNote(
                     payment_id=payment.payment_id,
@@ -93,10 +98,10 @@ class RegistrarPago:
         sm = self._agent_repo.get_sm()
 
         if sos is None or sm is None:
-            raise ValueError("SOS or SM agent not configured")
+            raise AgentNotConfiguredError("SOS or SM agent not configured")
 
         if input_data.payer_id != sos.agent_id:
-            raise ValueError("NC payment must have SOS as payer")
+            raise InvalidNCConfigurationError("NC payment must have SOS as payer")
 
         if input_data.payee_id != sm.agent_id:
-            raise ValueError("NC payment must have SM as payee")
+            raise InvalidNCConfigurationError("NC payment must have SM as payee")

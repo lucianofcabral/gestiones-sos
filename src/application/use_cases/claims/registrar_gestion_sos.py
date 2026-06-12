@@ -2,6 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from src.domain.exceptions import GestionAlreadyExistsError
 from src.domain.models.entities import Claim, SosClaim
 from src.domain.ports.uow import UnitOfWork
 
@@ -55,7 +56,7 @@ class RegistrarGestionSOS:
             # Verificar que no exista ya esa gestión SOS
             existing = uow.sos_claims.get_by_number(input_data.gestion)
             if existing is not None:
-                raise ValueError(
+                raise GestionAlreadyExistsError(
                     f"Ya existe una gestión con el número {input_data.gestion}"
                 )
 

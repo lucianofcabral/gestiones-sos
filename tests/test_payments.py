@@ -23,6 +23,11 @@ from src.domain.models.entities import (
     Payment,
     PaymentVia,
 )
+from src.domain.exceptions import (
+    ClaimHasActivePaymentsError,
+    InvalidNCConfigurationError,
+    InvalidPaymentUpdateError,
+)
 from src.domain.services.can_activate_payment import CanActivatePaymentService
 from src.domain.services.can_inactivate_payment import CanInactivatePaymentService
 from src.domain.services.payment_update_rules import PaymentUpdateRules
@@ -550,7 +555,7 @@ def test_registrar_pago_nc_wrong_payer(
     nc_via = _seed_nc_via(payment_via_repo)
     wrong_payer_id = uuid4()
 
-    with pytest.raises(ValueError, match="payer"):
+    with pytest.raises(InvalidNCConfigurationError, match="payer"):
         registrar_pago.execute(
             RegistrarPagoInput(
                 claim_id=uuid4(),
@@ -572,7 +577,7 @@ def test_registrar_pago_nc_wrong_payee(
     nc_via = _seed_nc_via(payment_via_repo)
     wrong_payee_id = uuid4()
 
-    with pytest.raises(ValueError, match="payee"):
+    with pytest.raises(InvalidNCConfigurationError, match="payee"):
         registrar_pago.execute(
             RegistrarPagoInput(
                 claim_id=uuid4(),
@@ -743,7 +748,7 @@ def test_delete_claim_with_active_payments_raises(
     payment_repo.add(_payment(claim_id=claim_id, active=True))
     use_case = EliminarGestionSOS(claim_repo, payment_repo)
 
-    with pytest.raises(ValueError, match="active payments"):
+    with pytest.raises(ClaimHasActivePaymentsError, match="active payments"):
         use_case.execute(EliminarGestionSOSInput(claim_id=claim_id))
 
 
@@ -1044,7 +1049,7 @@ def test_update_rules_rejects_change_to_nc_via_when_no_nc(
     payment_repo.add(payment)
     nc_via = _seed_nc_via(payment_via_repo)
 
-    with pytest.raises(ValueError, match="Credit Note"):
+    with pytest.raises(InvalidPaymentUpdateError, match="Credit Note"):
         payment_update_rules.validate(
             payment_id=payment.payment_id,
             payment_via_id=nc_via.payment_via_id,
@@ -1068,7 +1073,7 @@ def test_update_rules_rejects_non_amount_field_when_nc_exists(
         )
     )
 
-    with pytest.raises(ValueError, match="Only amount"):
+    with pytest.raises(InvalidPaymentUpdateError, match="Only amount"):
         payment_update_rules.validate(
             payment_id=payment.payment_id,
             payer_id=uuid4(),

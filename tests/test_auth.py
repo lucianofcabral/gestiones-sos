@@ -2,6 +2,10 @@
 
 import pytest
 
+from src.domain.exceptions import (
+    EmailAlreadyRegisteredError,
+    InvalidCredentialsError,
+)
 from src.adapters.persistence.inmemory_user_repository import InMemoryUserRepository
 from src.application.use_cases.auth import (
     Login,
@@ -87,7 +91,7 @@ def test_register_duplicate_email_raises(user_repo, password_port):
         RegisterInput(user_name="alice", email="alice@example.com", password="s")
     )
 
-    with pytest.raises(ValueError, match="Email already registered"):
+    with pytest.raises(EmailAlreadyRegisteredError, match="Email already registered"):
         use_case.execute(
             RegisterInput(user_name="alice2", email="alice@example.com", password="s")
         )
@@ -113,14 +117,14 @@ def test_login_wrong_password_raises(user_repo, password_port, token_port):
         RegisterInput(user_name="alice", email="alice@example.com", password="secret")
     )
 
-    with pytest.raises(ValueError, match="Invalid credentials"):
+    with pytest.raises(InvalidCredentialsError, match="Invalid credentials"):
         Login(user_repo, password_port, token_port).execute(
             LoginInput(email="alice@example.com", password="wrong")
         )
 
 
 def test_login_unknown_email_raises(user_repo, password_port, token_port):
-    with pytest.raises(ValueError, match="Invalid credentials"):
+    with pytest.raises(InvalidCredentialsError, match="Invalid credentials"):
         Login(user_repo, password_port, token_port).execute(
             LoginInput(email="nobody@example.com", password="x")
         )
