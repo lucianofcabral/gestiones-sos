@@ -15,6 +15,9 @@ from src.adapters.persistence.sqlalchemy_claim_kind_repository import (
 from src.adapters.persistence.sqlalchemy_claim_repository import (
     SqlAlchemyClaimRepository,
 )
+from src.adapters.persistence.sqlalchemy_group_claim_repository import (
+    SqlAlchemyGroupClaimRepository,
+)
 from src.adapters.persistence.sqlalchemy_ncpayment_repository import (
     SqlAlchemyNcPaymentRepository,
 )
@@ -31,7 +34,11 @@ from src.adapters.persistence.sqlalchemy_user_repository import SqlAlchemyUserRe
 from src.application.use_cases.documents.subir_documento import SubirDocumento
 from src.application.use_cases.documents.descargar_documento import DescargarDocumento
 from src.application.use_cases.documents.obtener_documentos import ObtenerDocumentos
+from src.application.use_cases.claims.actualizar_grupo import ActualizarGrupo
 from src.application.use_cases.claims.eliminar_gestion_sos import EliminarGestionSOS
+from src.application.use_cases.claims.eliminar_grupo import EliminarGrupo
+from src.application.use_cases.claims.obtener_grupos import ObtenerGrupos
+from src.application.use_cases.claims.registrar_grupo import RegistrarGrupo
 from src.application.use_cases.payments.activar_nc import ActivarNotaCredito
 from src.application.use_cases.payments.activar_pago import ActivarPago
 from src.application.use_cases.payments.actualizar_pago import ActualizarPago
@@ -50,6 +57,7 @@ from src.domain.ports.repositories import (
     ClaimKindRepoPort,
     ClaimRepoPort,
     DocumentRepoPort,
+    GroupClaimRepoPort,
     NcPaymentRepoPort,
     PaymentRepoPort,
     PeriodRepoPort,
@@ -117,6 +125,12 @@ def _build_document_repo() -> DocumentRepoPort:
     if not os.environ.get("DATABASE_URL"):
         raise RuntimeError("DATABASE_URL environment variable is not set")
     return SqlAlchemyDocumentRepository()
+
+
+def _build_group_claim_repo() -> GroupClaimRepoPort:
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return SqlAlchemyGroupClaimRepository()
 
 
 def _build_storage_service() -> FilesystemStorageService:
@@ -187,6 +201,7 @@ class Container:
         self._agent_repo = _build_agent_repo()
         self._payment_via_repo = _build_payment_via_repo()
         self._claim_kind_repo = _build_claim_kind_repo()
+        self._group_claim_repo = _build_group_claim_repo()
 
         # Document repos and use cases
         self._document_repo = _build_document_repo()
@@ -198,6 +213,14 @@ class Container:
             self._document_repo, self._storage_service
         )
         self._obtener_documentos = ObtenerDocumentos(self._document_repo)
+
+        # GroupClaim use cases
+        self._registrar_grupo = RegistrarGrupo(self._group_claim_repo)
+        self._obtener_grupos = ObtenerGrupos(self._group_claim_repo)
+        self._eliminar_grupo = EliminarGrupo(
+            group_repo=self._group_claim_repo, claim_repo=self._claim_repo
+        )
+        self._actualizar_grupo = ActualizarGrupo(self._group_claim_repo)
 
         # Domain services
         self._can_inactivate_svc = CanInactivatePaymentService(
@@ -293,6 +316,10 @@ class Container:
         return self._claim_kind_repo
 
     @property
+    def group_claim_repo(self) -> GroupClaimRepoPort:
+        return self._group_claim_repo
+
+    @property
     def document_repo(self) -> DocumentRepoPort:
         return self._document_repo
 
@@ -327,6 +354,22 @@ class Container:
     @property
     def can_activate_svc(self) -> CanActivatePaymentService:
         return self._can_activate_svc
+
+    @property
+    def registrar_grupo(self) -> RegistrarGrupo:
+        return self._registrar_grupo
+
+    @property
+    def obtener_grupos(self) -> ObtenerGrupos:
+        return self._obtener_grupos
+
+    @property
+    def eliminar_grupo(self) -> EliminarGrupo:
+        return self._eliminar_grupo
+
+    @property
+    def actualizar_grupo(self) -> ActualizarGrupo:
+        return self._actualizar_grupo
 
     @property
     def eliminar_gestion_sos(self) -> EliminarGestionSOS:

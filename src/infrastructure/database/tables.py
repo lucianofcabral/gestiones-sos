@@ -141,3 +141,11 @@ document_entities = sa.Table(
     sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
     sa.UniqueConstraint("document_id", "entity_type", "entity_id", name="uq_doc_entity"),
 )
+
+group_claims = sa.Table(
+    "group_claims",
+    metadata,
+    sa.Column("group_id", sa.UUID, primary_key=True),
+    sa.Column("name", sa.String(100), nullable=False, unique=True),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)

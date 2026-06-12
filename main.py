@@ -13,6 +13,7 @@ from src.ui.pages.register import register_register_page
 from src.ui.pages.reportes import register_reportes_page
 from src.ui.pages.catalogos import register_catalogos_page
 from src.ui.pages.documentos import register_documentos_page
+from src.ui.pages.grupos import register_grupos_page
 # ── Dark theme CSS overrides ─────────────────────────────────────────────────
 ui.add_head_html(
     """
@@ -34,6 +35,7 @@ register_gestiones_nueva_page()
 register_gestiones_detalle_page()
 register_pagos_page()
 register_periodos_page()
+register_grupos_page()
 register_catalogos_page()
 register_reportes_page()
 register_documentos_page()
