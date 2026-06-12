@@ -1,8 +1,7 @@
 import os
 
-from nicegui import app, ui
+from nicegui import ui
 
-from src.infrastructure.container import get_container
 from src.ui.pages.gestiones import register_gestiones_page
 from src.ui.pages.gestiones_detalle import register_gestiones_detalle_page
 from src.ui.pages.gestiones_nueva import register_gestiones_nueva_page
@@ -12,7 +11,7 @@ from src.ui.pages.pagos import register_pagos_page
 from src.ui.pages.periodos import register_periodos_page
 from src.ui.pages.register import register_register_page
 from src.ui.pages.reportes import register_reportes_page
-from src.ui.routes.auth import create_auth_routes
+from src.ui.pages.catalogos import register_catalogos_page
 
 # ── Dark theme CSS overrides ─────────────────────────────────────────────────
 ui.add_head_html(
@@ -26,10 +25,6 @@ body { background-color: #1a1a2e !important; color: #e0e0e0; }
     shared=True,
 )
 
-# ── Auth routes ──────────────────────────────────────────────────────────────
-container = get_container()
-create_auth_routes(container.auth_router)
-
 # ── Page registrations ────────────────────────────────────────────────────────
 register_login_page()
 register_register_page()
@@ -39,6 +34,7 @@ register_gestiones_nueva_page()
 register_gestiones_detalle_page()
 register_pagos_page()
 register_periodos_page()
+register_catalogos_page()
 register_reportes_page()
 
 

@@ -90,3 +90,30 @@ nc_payments = sa.Table(
         "created_date", sa.DateTime, nullable=False, server_default=sa.func.now()
     ),
 )
+
+agents = sa.Table(
+    "agents",
+    metadata,
+    sa.Column("agent_id", sa.UUID, primary_key=True),
+    sa.Column("name", sa.String(100), nullable=False, unique=True),
+    sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)
+
+payment_vias = sa.Table(
+    "payment_vias",
+    metadata,
+    sa.Column("payment_via_id", sa.UUID, primary_key=True),
+    sa.Column("name", sa.String(100), nullable=False, unique=True),
+    sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)
+
+claim_kinds = sa.Table(
+    "claim_kinds",
+    metadata,
+    sa.Column("claim_kind_id", sa.UUID, primary_key=True),
+    sa.Column("name", sa.String(100), nullable=False, unique=True),
+    sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)

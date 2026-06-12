@@ -78,8 +78,9 @@ class TestAuthGuard:
         assert "/gestiones/nueva" in targets
         assert "/pagos" in targets
         assert "/periodos" in targets
+        assert "/catalogos" in targets
         assert "/reportes" in targets
-        assert len(items) == 6
+        assert len(items) == 7
 
     def test_logout_clears_user_and_navigates(self):
         """_logout clears app.storage.user and navigates to /login."""

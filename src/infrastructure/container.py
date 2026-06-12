@@ -3,6 +3,12 @@ from typing import Any
 from uuid import UUID
 
 from src.adapters.auth import JwtService, PasswordAdapter
+from src.adapters.persistence.sqlalchemy_agent_repository import (
+    SqlAlchemyAgentRepository,
+)
+from src.adapters.persistence.sqlalchemy_claim_kind_repository import (
+    SqlAlchemyClaimKindRepository,
+)
 from src.adapters.persistence.sqlalchemy_claim_repository import (
     SqlAlchemyClaimRepository,
 )
@@ -11,6 +17,9 @@ from src.adapters.persistence.sqlalchemy_ncpayment_repository import (
 )
 from src.adapters.persistence.sqlalchemy_payment_repository import (
     SqlAlchemyPaymentRepository,
+)
+from src.adapters.persistence.sqlalchemy_payment_via_repository import (
+    SqlAlchemyPaymentViaRepository,
 )
 from src.adapters.persistence.sqlalchemy_period_repository import (
     SqlAlchemyPeriodRepository,
@@ -29,9 +38,10 @@ from src.application.use_cases.payments.obtener_ncs import ObtenerNotasCredito
 from src.application.use_cases.payments.obtener_pagos import ObtenerPagos
 from src.application.use_cases.payments.registrar_nc import RegistrarNotaCredito
 from src.application.use_cases.payments.registrar_pago import RegistrarPago
-from src.domain.models.entities import Agent, Invoice, PaymentVia
+from src.domain.models.entities import Invoice
 from src.domain.ports.repositories import (
     BillingRepoPort,
+    ClaimKindRepoPort,
     ClaimRepoPort,
     NcPaymentRepoPort,
     PaymentRepoPort,
@@ -77,6 +87,24 @@ def _build_nc_payment_repo() -> NcPaymentRepoPort:
     return SqlAlchemyNcPaymentRepository()
 
 
+def _build_agent_repo():
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return SqlAlchemyAgentRepository()
+
+
+def _build_payment_via_repo():
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return SqlAlchemyPaymentViaRepository()
+
+
+def _build_claim_kind_repo():
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return SqlAlchemyClaimKindRepository()
+
+
 # ── Stub repos for dependencies without SQLAlchemy implementations ────────────
 
 
@@ -117,96 +145,7 @@ class _StubBillingRepository:
         return []
 
 
-class _StubAgentRepository:
-    """Stub AgentRepoPort — returns None for all lookups.
 
-    Used because no SqlAlchemyAgentRepository exists yet.
-    """
-
-    def add(self, model: Agent) -> Agent:
-        return model
-
-    def get_by_id(self, id: UUID) -> Agent | None:
-        return None
-
-    def get_all(self) -> list[Agent]:
-        return []
-
-    def delete(self, id: UUID) -> None:
-        pass
-
-    def update(self, id: UUID, model: Agent) -> bool:
-        return False
-
-    def exists(self, data: dict[str, Any]) -> bool:
-        return False
-
-    def get_by_ids(self, ids: list[UUID]) -> list[Agent]:
-        return []
-
-    def activate(self, id: UUID) -> bool:
-        return False
-
-    def inactivate(self, id: UUID) -> bool:
-        return False
-
-    def get_by_name(self, name: str) -> Agent | None:
-        return None
-
-    def get_sm(self) -> Agent | None:
-        return None
-
-    def get_prestador(self) -> Agent | None:
-        return None
-
-    def get_sos(self) -> Agent | None:
-        return None
-
-    def get_asegurado(self) -> Agent | None:
-        return None
-
-
-class _StubPaymentViaRepository:
-    """Stub PaymentViaRepoPort — returns None for all lookups.
-
-    Used because no SqlAlchemyPaymentViaRepository exists yet.
-    """
-
-    def add(self, model: PaymentVia) -> PaymentVia:
-        return model
-
-    def get_by_id(self, id: UUID) -> PaymentVia | None:
-        return None
-
-    def get_all(self) -> list[PaymentVia]:
-        return []
-
-    def delete(self, id: UUID) -> None:
-        pass
-
-    def update(self, id: UUID, model: PaymentVia) -> bool:
-        return False
-
-    def exists(self, data: dict[str, Any]) -> bool:
-        return False
-
-    def get_by_ids(self, ids: list[UUID]) -> list[PaymentVia]:
-        return []
-
-    def activate(self, id: UUID) -> bool:
-        return False
-
-    def inactivate(self, id: UUID) -> bool:
-        return False
-
-    def get_by_name(self, name: str) -> PaymentVia | None:
-        return None
-
-    def get_transferencia(self) -> PaymentVia | None:
-        return None
-
-    def get_nc(self) -> PaymentVia | None:
-        return None
 
 
 # ── Container ─────────────────────────────────────────────────────────────────
@@ -230,8 +169,9 @@ class Container:
 
         # Stub repos for unimplemented adapters
         self._billing_repo: BillingRepoPort = _StubBillingRepository()
-        self._agent_repo = _StubAgentRepository()
-        self._payment_via_repo = _StubPaymentViaRepository()
+        self._agent_repo = _build_agent_repo()
+        self._payment_via_repo = _build_payment_via_repo()
+        self._claim_kind_repo = _build_claim_kind_repo()
 
         # Domain services
         self._can_inactivate_svc = CanInactivatePaymentService(
@@ -313,6 +253,18 @@ class Container:
     @property
     def billing_repo(self) -> BillingRepoPort:
         return self._billing_repo
+
+    @property
+    def agent_repo(self):
+        return self._agent_repo
+
+    @property
+    def payment_via_repo(self):
+        return self._payment_via_repo
+
+    @property
+    def claim_kind_repo(self) -> ClaimKindRepoPort:
+        return self._claim_kind_repo
 
     @property
     def password_adapter(self) -> PasswordAdapter:
