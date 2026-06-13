@@ -1,5 +1,6 @@
-"""Facturación page — period selector, invoice list, create form, delete button."""
+"""Facturación page — period selector, invoice list, create/edit/delete."""
 
+from copy import deepcopy
 from datetime import datetime
 from uuid import UUID
 
@@ -105,41 +106,111 @@ def register_facturacion_page() -> None:
                 total = sum(inv.amount for inv in invoices)
                 total_label.text = f"Total facturado: ${total:,.2f}"
 
-                rows = [
-                    {
-                        "invoice_number": inv.invoice_number,
-                        "emited_date": inv.emited_date.strftime("%Y-%m-%d"),
-                        "amount": f"${inv.amount:,.2f}",
-                        "actions": _delete_button(inv.invoice_id, _render_invoices),
-                    }
-                    for inv in invoices
-                ]
-
-                for row in rows:
+                for inv in invoices:
                     with ui.row().classes("items-center gap-4 py-1"):
-                        ui.label(row["invoice_number"]).classes("text-sm w-32")
-                        ui.label(row["emited_date"]).classes(
+                        ui.label(inv.invoice_number).classes("text-sm w-32")
+                        ui.label(inv.emited_date.strftime("%Y-%m-%d")).classes(
                             "text-sm w-28 text-gray-400"
                         )
-                        ui.label(row["amount"]).classes("text-sm w-24 text-right")
-                        row["actions"]
+                        ui.label(f"${inv.amount:,.2f}").classes(
+                            "text-sm w-24 text-right"
+                        )
 
-            def _delete_button(invoice_id: UUID, refresh_fn) -> ui.button:
-                def _do_delete() -> None:
-                    try:
-                        container.eliminar_factura.execute(invoice_id)
-                        ui.notify("Factura eliminada", type="positive")
-                        refresh_fn.refresh()
-                    except ValueError as e:
-                        ui.notify(str(e), type="negative")
-                    except Exception as e:
-                        ui.notify(f"Error: {e}", type="negative")
+                        # Edit button with dialog
+                        with ui.dialog() as edit_dialog:
+                            _edit_invoice_dialog(edit_dialog, inv, _render_invoices)
 
-                return ui.button(
-                    "Eliminar",
-                    icon="delete",
-                    on_click=_do_delete,
-                ).props("flat size=sm")
+                        ui.button(
+                            icon="edit",
+                            on_click=edit_dialog.open,
+                        ).props("flat dense round size=sm")
+
+                        # Delete button
+                        ui.button(
+                            icon="delete",
+                            on_click=lambda iid=inv.invoice_id: _delete_invoice(
+                                iid, _render_invoices
+                            ),
+                        ).props("flat dense round color=negative size=sm")
+
+            def _delete_invoice(invoice_id: UUID, refresh_fn) -> None:
+                try:
+                    container.eliminar_factura.execute(invoice_id)
+                    ui.notify("Factura eliminada", type="positive")
+                    refresh_fn.refresh()
+                except ValueError as e:
+                    ui.notify(str(e), type="negative")
+                except Exception as e:
+                    ui.notify(f"Error: {e}", type="negative")
+
+            def _edit_invoice_dialog(
+                dialog: ui.dialog, invoice, refresh_fn
+            ) -> None:
+                """Render edit dialog content for a single invoice."""
+                with dialog, ui.card():
+                    ui.label("Editar Factura").classes("text-lg font-bold")
+
+                    num_input = ui.input(
+                        label="Número de factura", value=invoice.invoice_number
+                    )
+                    date_input = ui.input(
+                        label="Fecha de emisión (YYYY-MM-DD)",
+                        value=invoice.emited_date.strftime("%Y-%m-%d"),
+                    )
+                    amount_input = ui.number(
+                        label="Monto",
+                        value=invoice.amount,
+                        precision=2,
+                    )
+
+                    with ui.row().classes("gap-2 justify-end mt-2"):
+                        ui.button("Cancelar", on_click=dialog.close).props("flat")
+
+                        async def _save() -> None:
+                            num = (num_input.value or "").strip()
+                            date_str = (date_input.value or "").strip()
+                            amount = amount_input.value
+
+                            if not num or not date_str or not amount:
+                                ui.notify(
+                                    "Todos los campos son obligatorios",
+                                    type="warning",
+                                )
+                                return
+
+                            try:
+                                parsed_date = datetime.strptime(
+                                    date_str, "%Y-%m-%d"
+                                )
+                            except ValueError:
+                                ui.notify(
+                                    "Fecha inválida. Use YYYY-MM-DD",
+                                    type="warning",
+                                )
+                                return
+
+                            try:
+                                kwargs = {"invoice_number": num}
+                                for f in ("invoice_id", "period_id", "created_at"):
+                                    kwargs[f] = deepcopy(
+                                        getattr(invoice, f)
+                                    )
+                                kwargs["emited_date"] = parsed_date
+                                kwargs["amount"] = float(amount)
+
+                                from src.domain.models.entities import Invoice
+
+                                updated = Invoice(**kwargs)
+                                container.billing_repo.update(
+                                    invoice.invoice_id, updated
+                                )
+                                dialog.close()
+                                ui.notify("Factura actualizada", type="positive")
+                                refresh_fn.refresh()
+                            except Exception as e:
+                                ui.notify(f"Error: {e}", type="negative")
+
+                        ui.button("Guardar", on_click=_save)
 
             # ── Refresh periods on load ──────────────────────────────────────
             def _refresh_periods() -> None:
