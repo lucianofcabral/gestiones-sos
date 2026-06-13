@@ -39,6 +39,9 @@ from src.application.use_cases.billing.obtener_total_facturacion import (
     ObtenerTotalFacturacion,
 )
 from src.application.use_cases.billing.registrar_factura import RegistrarFactura
+from src.application.use_cases.periods.crear_periodo import CrearPeriodo
+from src.application.use_cases.periods.eliminar_periodo import EliminarPeriodo
+from src.application.use_cases.periods.listar_periodos import ListarPeriodos
 from src.application.use_cases.documents.subir_documento import SubirDocumento
 from src.application.use_cases.documents.descargar_documento import DescargarDocumento
 from src.application.use_cases.documents.obtener_documentos import ObtenerDocumentos
@@ -202,6 +205,13 @@ class Container:
             self._billing_repo, self._document_repo
         )
         self._obtener_total_facturacion = ObtenerTotalFacturacion(self._period_repo)
+
+        # Period use cases
+        self._crear_periodo = CrearPeriodo(self._period_repo)
+        self._listar_periodos = ListarPeriodos(self._period_repo)
+        self._eliminar_periodo = EliminarPeriodo(
+            self._period_repo, self._billing_repo, self._nc_payment_repo
+        )
 
         # Domain services
         self._can_inactivate_svc = CanInactivatePaymentService(
@@ -371,6 +381,18 @@ class Container:
     @property
     def obtener_total_facturacion(self) -> ObtenerTotalFacturacion:
         return self._obtener_total_facturacion
+
+    @property
+    def crear_periodo(self) -> CrearPeriodo:
+        return self._crear_periodo
+
+    @property
+    def listar_periodos(self) -> ListarPeriodos:
+        return self._listar_periodos
+
+    @property
+    def eliminar_periodo(self) -> EliminarPeriodo:
+        return self._eliminar_periodo
 
     @property
     def eliminar_gestion_sos(self) -> EliminarGestionSOS:

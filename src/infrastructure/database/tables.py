@@ -44,6 +44,7 @@ periods = sa.Table(
     sa.Column("year", sa.Integer, nullable=False),
     sa.Column("month", sa.Integer, nullable=False),
     sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+    sa.UniqueConstraint("year", "month", name="uq_periods_year_month"),
 )
 
 sos_claims = sa.Table(
