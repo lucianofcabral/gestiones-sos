@@ -139,7 +139,9 @@ document_entities = sa.Table(
     sa.Column("entity_type", sa.String(50), nullable=False),
     sa.Column("entity_id", sa.UUID, nullable=False),
     sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
-    sa.UniqueConstraint("document_id", "entity_type", "entity_id", name="uq_doc_entity"),
+    sa.UniqueConstraint(
+        "document_id", "entity_type", "entity_id", name="uq_doc_entity"
+    ),
 )
 
 group_claims = sa.Table(
@@ -147,5 +149,16 @@ group_claims = sa.Table(
     metadata,
     sa.Column("group_id", sa.UUID, primary_key=True),
     sa.Column("name", sa.String(100), nullable=False, unique=True),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)
+
+invoices = sa.Table(
+    "invoices",
+    metadata,
+    sa.Column("invoice_id", sa.UUID, primary_key=True),
+    sa.Column("invoice_number", sa.Text, nullable=False),
+    sa.Column("period_id", sa.UUID, sa.ForeignKey("periods.period_id"), nullable=False),
+    sa.Column("emited_date", sa.DateTime, nullable=False),
+    sa.Column("amount", sa.Numeric(12, 2), nullable=False),
     sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
 )

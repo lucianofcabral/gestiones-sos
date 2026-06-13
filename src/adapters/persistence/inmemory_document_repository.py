@@ -44,14 +44,10 @@ class InMemoryDocumentRepository:
 
     def get_by_content(self, content: bytes) -> Document | None:
         hash = hashlib.sha256(content).hexdigest()
-        return next(
-            (d for d in self._store if d.document_hash == hash), None
-        )
+        return next((d for d in self._store if d.document_hash == hash), None)
 
     def get_by_name(self, name: str) -> Document | None:
-        return next(
-            (d for d in self._store if d.name == name), None
-        )
+        return next((d for d in self._store if d.name == name), None)
 
     def _get_by_entity(self, entity_type: str, entity_id: UUID) -> list[Document]:
         doc_ids = [
@@ -84,9 +80,5 @@ class InMemoryDocumentRepository:
             }
         )
 
-    def get_document_entities(
-        self, document_id: UUID
-    ) -> list[dict[str, Any]]:
-        return [
-            e for e in self._entity_store if e["document_id"] == document_id
-        ]
+    def get_document_entities(self, document_id: UUID) -> list[dict[str, Any]]:
+        return [e for e in self._entity_store if e["document_id"] == document_id]

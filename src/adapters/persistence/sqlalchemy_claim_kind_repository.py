@@ -58,7 +58,9 @@ class SqlAlchemyClaimKindRepository:
 
     def delete(self, id: UUID) -> None:
         with self._get_conn() as conn:
-            conn.execute(sa.delete(claim_kinds).where(claim_kinds.c.claim_kind_id == id))
+            conn.execute(
+                sa.delete(claim_kinds).where(claim_kinds.c.claim_kind_id == id)
+            )
 
     def update(self, id: UUID, model: ClaimKind) -> bool:
         with self._get_conn() as conn:

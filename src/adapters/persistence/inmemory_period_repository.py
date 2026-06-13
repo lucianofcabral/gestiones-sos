@@ -5,8 +5,9 @@ from src.domain.models.entities import Period
 
 
 class InMemoryPeriodRepository:
-    def __init__(self) -> None:
+    def __init__(self, invoice_store: list | None = None) -> None:
         self._store: list[Period] = []
+        self._invoice_store: list = invoice_store if invoice_store is not None else []
 
     # ── BaseRepo ──────────────────────────────────────────────────────────────
 
@@ -56,6 +57,14 @@ class InMemoryPeriodRepository:
         return sorted_periods[:n]
 
     def get_total_billing_by_year_month(self, year: int, month: int) -> float:
-        raise NotImplementedError(
-            "get_total_billing_by_year_month requiere el módulo Billing"
+        from src.domain.models.entities import Invoice
+
+        matching_period_ids = [
+            p.period_id for p in self._store if p.year == year and p.month == month
+        ]
+        total = sum(
+            inv.amount
+            for inv in self._invoice_store
+            if isinstance(inv, Invoice) and inv.period_id in matching_period_ids
         )
+        return float(total)

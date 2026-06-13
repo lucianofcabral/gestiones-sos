@@ -385,7 +385,7 @@ def _invoice(**overrides: Any) -> Invoice:
     """Create an Invoice with sensible defaults."""
     defaults: dict[str, Any] = {
         "invoice_id": uuid4(),
-        "invoice_number": 12345,
+        "invoice_number": "F001",
         "period_id": uuid4(),
         "emited_date": "2026-01-15T00:00:00",
         "amount": 5000.0,

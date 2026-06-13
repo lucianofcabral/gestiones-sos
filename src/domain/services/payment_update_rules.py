@@ -48,4 +48,6 @@ class PaymentUpdateRules:
             if payment_via_id is not None:
                 nc_via = self._payment_via_repo.get_nc()
                 if nc_via is not None and payment_via_id == nc_via.payment_via_id:
-                    raise InvalidPaymentUpdateError("Cannot change payment method to Credit Note")
+                    raise InvalidPaymentUpdateError(
+                        "Cannot change payment method to Credit Note"
+                    )

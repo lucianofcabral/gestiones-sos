@@ -232,8 +232,8 @@ def test_get_n_last_with_none_returns_all_sorted(
 # ── PeriodRepoPort: get_total_billing_by_year_month ──────────────────────────
 
 
-def test_get_total_billing_raises_not_implemented(
+def test_get_total_billing_returns_zero_when_no_invoices(
     period_repo: InMemoryPeriodRepository,
 ) -> None:
-    with pytest.raises(NotImplementedError):
-        period_repo.get_total_billing_by_year_month(2025, 6)
+    result = period_repo.get_total_billing_by_year_month(2025, 6)
+    assert result == 0.0

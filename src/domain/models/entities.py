@@ -83,7 +83,7 @@ class Period(BaseModel):
 
 class Invoice(BaseModel):
     invoice_id: UUID = Field(default_factory=uuid4)
-    invoice_number: int = Field(0, ge=0)
+    invoice_number: str = Field(min_length=1, max_length=50)
     period_id: UUID = Field(default_factory=uuid4)
     emited_date: datetime
     amount: float = Field(gt=0)

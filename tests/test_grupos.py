@@ -103,9 +103,7 @@ class TestGroupClaimRepo:
 
     # ── BaseRepo: add ──────────────────────────────────────────────────────
 
-    def test_add_stores_group(
-        self, group_repo: InMemoryGroupClaimRepository
-    ) -> None:
+    def test_add_stores_group(self, group_repo: InMemoryGroupClaimRepository) -> None:
         group = GroupClaim(name="New Group", group_id=uuid4())
 
         result = group_repo.add(group)
@@ -331,9 +329,7 @@ class TestGroupClaimRepo:
 class TestRegistrarGrupo:
     """Tests for RegistrarGrupo use case."""
 
-    def test_creates_new_group(
-        self, group_repo: InMemoryGroupClaimRepository
-    ) -> None:
+    def test_creates_new_group(self, group_repo: InMemoryGroupClaimRepository) -> None:
         uc = RegistrarGrupo(group_repo)
 
         result = uc.execute("Nuevo Grupo")

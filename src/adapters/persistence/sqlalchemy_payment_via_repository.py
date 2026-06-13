@@ -58,7 +58,9 @@ class SqlAlchemyPaymentViaRepository:
 
     def delete(self, id: UUID) -> None:
         with self._get_conn() as conn:
-            conn.execute(sa.delete(payment_vias).where(payment_vias.c.payment_via_id == id))
+            conn.execute(
+                sa.delete(payment_vias).where(payment_vias.c.payment_via_id == id)
+            )
 
     def update(self, id: UUID, model: PaymentVia) -> bool:
         with self._get_conn() as conn:

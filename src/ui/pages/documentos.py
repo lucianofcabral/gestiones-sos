@@ -63,9 +63,7 @@ def register_documentos_page() -> None:
                     },
                 ]
                 rows = []
-                for doc in sorted(
-                    docs, key=lambda d: d.created_at, reverse=True
-                ):
+                for doc in sorted(docs, key=lambda d: d.created_at, reverse=True):
                     rows.append(
                         {
                             "name": doc.name,
@@ -100,9 +98,7 @@ def register_documentos_page() -> None:
 
                 table.on("download", handle_download)
             else:
-                ui.label("No hay documentos cargados.").classes(
-                    "text-gray-400 italic"
-                )
+                ui.label("No hay documentos cargados.").classes("text-gray-400 italic")
 
     # ── Download endpoint ─────────────────────────────────────────────────────
     @ui.page("/api/documents/{document_id:str}/file")
@@ -121,9 +117,7 @@ def register_documentos_page() -> None:
         try:
             result = container.descargar_documento.execute(doc_uuid)
         except FileNotFoundError:
-            ui.label("Archivo no encontrado en el servidor").classes(
-                "text-red-500"
-            )
+            ui.label("Archivo no encontrado en el servidor").classes("text-red-500")
             return
 
         if result is None:
@@ -132,10 +126,7 @@ def register_documentos_page() -> None:
 
         doc = result.document
         ext = doc.name.rsplit(".", 1)[-1] if "." in doc.name else ""
-        tmp = (
-            pathlib.Path(tempfile.gettempdir())
-            / f"doc_{doc.document_id}.{ext}"
-        )
+        tmp = pathlib.Path(tempfile.gettempdir()) / f"doc_{doc.document_id}.{ext}"
         tmp.write_bytes(result.content)
         ui.download(tmp.as_posix(), filename=doc.name)
 

@@ -33,7 +33,9 @@ def storage() -> FilesystemStorageService:
 
 
 class TestFilesystemStorageService:
-    def test_save_returns_hash_and_creates_file(self, storage: FilesystemStorageService) -> None:
+    def test_save_returns_hash_and_creates_file(
+        self, storage: FilesystemStorageService
+    ) -> None:
         content = b"hello world"
         ext = "txt"
 
@@ -43,7 +45,9 @@ class TestFilesystemStorageService:
         assert len(hash) == 64  # SHA-256 hex
         assert Path(storage._path_from_hash(hash, ext)).exists()
 
-    def test_save_uses_two_level_nesting(self, storage: FilesystemStorageService) -> None:
+    def test_save_uses_two_level_nesting(
+        self, storage: FilesystemStorageService
+    ) -> None:
         content = b"nesting test"
         ext = "pdf"
 
@@ -54,7 +58,9 @@ class TestFilesystemStorageService:
         assert path.parent.name == hash[2:4]
         assert path.parent.parent.name == hash[:2]
 
-    def test_save_same_content_twice_does_not_overwrite(self, storage: FilesystemStorageService) -> None:
+    def test_save_same_content_twice_does_not_overwrite(
+        self, storage: FilesystemStorageService
+    ) -> None:
         content = b"dedup content"
         ext = "txt"
 
@@ -76,9 +82,14 @@ class TestFilesystemStorageService:
 
         assert retrieved == content
 
-    def test_get_raises_on_missing_file(self, storage: FilesystemStorageService) -> None:
+    def test_get_raises_on_missing_file(
+        self, storage: FilesystemStorageService
+    ) -> None:
         with pytest.raises(FileNotFoundError):
-            storage.get("0000000000000000000000000000000000000000000000000000000000000000", "txt")
+            storage.get(
+                "0000000000000000000000000000000000000000000000000000000000000000",
+                "txt",
+            )
 
     def test_delete_removes_file(self, storage: FilesystemStorageService) -> None:
         content = b"delete me"
@@ -91,20 +102,29 @@ class TestFilesystemStorageService:
 
         assert not path.exists()
 
-    def test_delete_nonexistent_does_not_raise(self, storage: FilesystemStorageService) -> None:
-        storage.delete("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "txt")
+    def test_delete_nonexistent_does_not_raise(
+        self, storage: FilesystemStorageService
+    ) -> None:
+        storage.delete(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "txt"
+        )
 
-    def test_exists_returns_true_when_file_exists(self, storage: FilesystemStorageService) -> None:
+    def test_exists_returns_true_when_file_exists(
+        self, storage: FilesystemStorageService
+    ) -> None:
         content = b"exists check"
         ext = "txt"
         hash = storage.save(content, ext)
 
         assert storage.exists(hash, ext) is True
 
-    def test_exists_returns_false_when_missing(self, storage: FilesystemStorageService) -> None:
+    def test_exists_returns_false_when_missing(
+        self, storage: FilesystemStorageService
+    ) -> None:
         assert (
             storage.exists(
-                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "txt"
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "txt",
             )
             is False
         )
@@ -127,7 +147,9 @@ class TestFilesystemStorageService:
             assert path.exists()
             assert str(path).startswith(tmp)
 
-    def test_different_contents_produce_different_hashes(self, storage: FilesystemStorageService) -> None:
+    def test_different_contents_produce_different_hashes(
+        self, storage: FilesystemStorageService
+    ) -> None:
         h1 = storage.save(b"alpha", "txt")
         h2 = storage.save(b"beta", "txt")
         assert h1 != h2
@@ -138,7 +160,9 @@ class TestFilesystemStorageService:
         path = storage._path_from_hash(hash, "pdf")
         assert path.suffix == ".pdf"
 
-    def test_directory_created_on_first_save(self, storage: FilesystemStorageService) -> None:
+    def test_directory_created_on_first_save(
+        self, storage: FilesystemStorageService
+    ) -> None:
         content = b"dir create"
         hash = storage.save(content, "txt")
         path = storage._path_from_hash(hash, "txt")
@@ -184,7 +208,9 @@ class TestInMemoryDocumentRepositoryBaseRepo:
         doc = _seed_doc(doc_repo)
         assert doc_repo.get_by_id(doc.document_id) == doc
 
-    def test_get_by_id_returns_none_when_not_found(self, doc_repo: InMemoryDocumentRepository) -> None:
+    def test_get_by_id_returns_none_when_not_found(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
         assert doc_repo.get_by_id(uuid4()) is None
 
     def test_get_all_returns_all(self, doc_repo: InMemoryDocumentRepository) -> None:
@@ -206,7 +232,9 @@ class TestInMemoryDocumentRepositoryBaseRepo:
         _seed_doc(doc_repo, name="exists.pdf")
         assert doc_repo.exists({"name": "nope.pdf"}) is False
 
-    def test_update_returns_true_and_modifies(self, doc_repo: InMemoryDocumentRepository) -> None:
+    def test_update_returns_true_and_modifies(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
         doc = _seed_doc(doc_repo, name="old.pdf")
         updated = Document(
             document_id=doc.document_id,
@@ -222,19 +250,34 @@ class TestInMemoryDocumentRepositoryBaseRepo:
         assert stored is not None
         assert stored.name == "new.pdf"
 
-    def test_update_returns_false_when_not_found(self, doc_repo: InMemoryDocumentRepository) -> None:
-        doc = Document(document_id=uuid4(), document_hash="a", type="pdf", name="x.pdf", size=1, mime="a")
+    def test_update_returns_false_when_not_found(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
+        doc = Document(
+            document_id=uuid4(),
+            document_hash="a",
+            type="pdf",
+            name="x.pdf",
+            size=1,
+            mime="a",
+        )
         assert doc_repo.update(doc.document_id, doc) is False
 
-    def test_delete_removes_document(self, doc_repo: InMemoryDocumentRepository) -> None:
+    def test_delete_removes_document(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
         doc = _seed_doc(doc_repo)
         doc_repo.delete(doc.document_id)
         assert doc_repo.get_by_id(doc.document_id) is None
 
-    def test_delete_nonexistent_does_nothing(self, doc_repo: InMemoryDocumentRepository) -> None:
+    def test_delete_nonexistent_does_nothing(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
         doc_repo.delete(uuid4())  # must not raise
 
-    def test_get_by_ids_returns_matching(self, doc_repo: InMemoryDocumentRepository) -> None:
+    def test_get_by_ids_returns_matching(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
         d1 = _seed_doc(doc_repo)
         d2 = _seed_doc(doc_repo)
         d3 = _seed_doc(doc_repo)
@@ -244,7 +287,9 @@ class TestInMemoryDocumentRepositoryBaseRepo:
         assert d3 in result
         assert d2 not in result
 
-    def test_get_by_ids_returns_empty(self, doc_repo: InMemoryDocumentRepository) -> None:
+    def test_get_by_ids_returns_empty(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
         _seed_doc(doc_repo)
         assert doc_repo.get_by_ids([uuid4(), uuid4()]) == []
 
@@ -252,23 +297,31 @@ class TestInMemoryDocumentRepositoryBaseRepo:
 class TestInMemoryDocumentRepositoryDocumentPort:
     """Verify DocumentRepoPort-specific methods."""
 
-    def test_get_by_content_returns_matching(self, doc_repo: InMemoryDocumentRepository) -> None:
+    def test_get_by_content_returns_matching(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
         content = b"unique content"
         doc = _seed_doc(doc_repo, content=content)
         result = doc_repo.get_by_content(content)
         assert result is not None
         assert result.document_id == doc.document_id
 
-    def test_get_by_content_returns_none_when_not_found(self, doc_repo: InMemoryDocumentRepository) -> None:
+    def test_get_by_content_returns_none_when_not_found(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
         assert doc_repo.get_by_content(b"nonexistent") is None
 
-    def test_get_by_name_returns_matching(self, doc_repo: InMemoryDocumentRepository) -> None:
+    def test_get_by_name_returns_matching(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
         doc = _seed_doc(doc_repo, name="specific.pdf")
         result = doc_repo.get_by_name("specific.pdf")
         assert result is not None
         assert result.document_id == doc.document_id
 
-    def test_get_by_name_returns_none_when_not_found(self, doc_repo: InMemoryDocumentRepository) -> None:
+    def test_get_by_name_returns_none_when_not_found(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
         assert doc_repo.get_by_name("missing.pdf") is None
 
     def test_get_by_claim_id(self, doc_repo: InMemoryDocumentRepository) -> None:
@@ -279,7 +332,9 @@ class TestInMemoryDocumentRepositoryDocumentPort:
         assert len(result) == 1
         assert result[0].document_id == doc.document_id
 
-    def test_get_by_claim_id_returns_empty(self, doc_repo: InMemoryDocumentRepository) -> None:
+    def test_get_by_claim_id_returns_empty(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
         assert doc_repo.get_by_claim_id(uuid4()) == []
 
     def test_get_by_group_id(self, doc_repo: InMemoryDocumentRepository) -> None:
@@ -297,7 +352,9 @@ class TestInMemoryDocumentRepositoryDocumentPort:
         assert result is not None
         assert result.document_id == doc.document_id
 
-    def test_get_by_billing_id_returns_none(self, doc_repo: InMemoryDocumentRepository) -> None:
+    def test_get_by_billing_id_returns_none(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
         assert doc_repo.get_by_billing_id(uuid4()) is None
 
     def test_get_document_entities(self, doc_repo: InMemoryDocumentRepository) -> None:
@@ -309,7 +366,9 @@ class TestInMemoryDocumentRepositoryDocumentPort:
         assert entities[0]["entity_type"] == "claim"
         assert entities[0]["entity_id"] == eid
 
-    def test_get_document_entities_empty(self, doc_repo: InMemoryDocumentRepository) -> None:
+    def test_get_document_entities_empty(
+        self, doc_repo: InMemoryDocumentRepository
+    ) -> None:
         assert doc_repo.get_document_entities(uuid4()) == []
 
 
@@ -319,7 +378,9 @@ class TestInMemoryDocumentRepositoryDocumentPort:
 
 
 @pytest.fixture
-def subir_use_case() -> tuple[SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService]:
+def subir_use_case() -> tuple[
+    SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+]:
     repo = InMemoryDocumentRepository()
     tmp = tempfile.TemporaryDirectory()
     storage_svc = FilesystemStorageService(base_path=tmp.name)
@@ -330,7 +391,10 @@ def subir_use_case() -> tuple[SubirDocumento, InMemoryDocumentRepository, Filesy
 
 class TestSubirDocumento:
     def test_upload_new_file(
-        self, subir_use_case: tuple[SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService]
+        self,
+        subir_use_case: tuple[
+            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+        ],
     ) -> None:
         use_case, repo, _ = subir_use_case
         entity_id = uuid4()
@@ -357,7 +421,10 @@ class TestSubirDocumento:
         assert stored.size == len(b"new file content")
 
     def test_upload_persists_entity_link(
-        self, subir_use_case: tuple[SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService]
+        self,
+        subir_use_case: tuple[
+            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+        ],
     ) -> None:
         use_case, repo, _ = subir_use_case
         entity_id = uuid4()
@@ -380,7 +447,10 @@ class TestSubirDocumento:
         assert entities[0]["entity_id"] == entity_id
 
     def test_upload_same_content_returns_existing_document_id(
-        self, subir_use_case: tuple[SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService]
+        self,
+        subir_use_case: tuple[
+            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+        ],
     ) -> None:
         use_case, repo, storage_svc = subir_use_case
         entity_id = uuid4()
@@ -419,7 +489,10 @@ class TestSubirDocumento:
         assert storage_svc.exists(hash, "pdf")
 
     def test_upload_with_description(
-        self, subir_use_case: tuple[SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService]
+        self,
+        subir_use_case: tuple[
+            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+        ],
     ) -> None:
         use_case, repo, _ = subir_use_case
         result = use_case.execute(
@@ -439,7 +512,10 @@ class TestSubirDocumento:
         assert stored.description == "A useful document"
 
     def test_upload_with_uploaded_by(
-        self, subir_use_case: tuple[SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService]
+        self,
+        subir_use_case: tuple[
+            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+        ],
     ) -> None:
         use_case, repo, _ = subir_use_case
         user_id = uuid4()
@@ -459,7 +535,10 @@ class TestSubirDocumento:
         assert stored.uploaded_by == user_id
 
     def test_upload_different_contents_produce_different_ids(
-        self, subir_use_case: tuple[SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService]
+        self,
+        subir_use_case: tuple[
+            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+        ],
     ) -> None:
         use_case, _, _ = subir_use_case
         entity_id = uuid4()
@@ -488,7 +567,10 @@ class TestSubirDocumento:
         assert r1.document_id != r2.document_id
 
     def test_upload_without_entity_type(
-        self, subir_use_case: tuple[SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService]
+        self,
+        subir_use_case: tuple[
+            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+        ],
     ) -> None:
         """Entity_type must be provided; test empty string behavior."""
         use_case, repo, _ = subir_use_case

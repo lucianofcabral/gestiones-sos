@@ -1,4 +1,5 @@
 """Content-addressable filesystem storage using SHA-256 hash."""
+
 import hashlib
 import os
 from pathlib import Path
@@ -6,9 +7,9 @@ from pathlib import Path
 
 class FilesystemStorageService:
     def __init__(self, base_path: str | None = None):
-        self._base = Path(base_path or os.environ.get(
-            "DOCUMENTS_STORAGE_PATH", "./storage/documents"
-        ))
+        self._base = Path(
+            base_path or os.environ.get("DOCUMENTS_STORAGE_PATH", "./storage/documents")
+        )
 
     def _path_from_hash(self, hash: str, ext: str) -> Path:
         return self._base / hash[:2] / hash[2:4] / f"{hash}.{ext}"

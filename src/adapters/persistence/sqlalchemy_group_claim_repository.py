@@ -56,9 +56,7 @@ class SqlAlchemyGroupClaimRepository:
 
     def delete(self, id: UUID) -> None:
         with self._get_conn() as conn:
-            conn.execute(
-                sa.delete(group_claims).where(group_claims.c.group_id == id)
-            )
+            conn.execute(sa.delete(group_claims).where(group_claims.c.group_id == id))
 
     def update(self, id: UUID, model: GroupClaim) -> bool:
         with self._get_conn() as conn:
@@ -103,9 +101,7 @@ class SqlAlchemyGroupClaimRepository:
     def get_by_text_like(self, text: str) -> list[GroupClaim]:
         with self._get_conn() as conn:
             rows = conn.execute(
-                sa.select(group_claims).where(
-                    group_claims.c.name.ilike(f"%{text}%")
-                )
+                sa.select(group_claims).where(group_claims.c.name.ilike(f"%{text}%"))
             ).fetchall()
         return [self._row_to_entity(r) for r in rows]
 

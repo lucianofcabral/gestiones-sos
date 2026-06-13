@@ -174,9 +174,7 @@ class TestAgentRepo:
 
     # ── BaseRepo: delete ───────────────────────────────────────────────────
 
-    def test_delete_removes_agent(
-        self, agent_repo: InMemoryAgentRepository
-    ) -> None:
+    def test_delete_removes_agent(self, agent_repo: InMemoryAgentRepository) -> None:
         agent = _seed_agent(agent_repo)
 
         agent_repo.delete(agent.agent_id)
@@ -241,9 +239,7 @@ class TestAgentRepo:
         assert result is not None
         assert result.name == "SOS"
 
-    def test_get_sm_returns_sm_agent(
-        self, agent_repo: InMemoryAgentRepository
-    ) -> None:
+    def test_get_sm_returns_sm_agent(self, agent_repo: InMemoryAgentRepository) -> None:
         _seed_agent(agent_repo, name="SM")
 
         result = agent_repo.get_sm()

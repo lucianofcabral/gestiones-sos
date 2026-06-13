@@ -201,9 +201,7 @@ class SqlAlchemyDocumentRepository:
                 )
             )
 
-    def get_document_entities(
-        self, document_id: UUID
-    ) -> list[dict[str, Any]]:
+    def get_document_entities(self, document_id: UUID) -> list[dict[str, Any]]:
         with self._get_conn() as conn:
             rows = conn.execute(
                 sa.select(document_entities).where(

@@ -45,9 +45,7 @@ def register_grupos_page() -> None:
                         "align": "left",
                     },
                 ]
-                rows = [
-                    {"name": g.name, "group_id": str(g.group_id)} for g in groups
-                ]
+                rows = [{"name": g.name, "group_id": str(g.group_id)} for g in groups]
                 ui.table(columns=columns, rows=rows, row_key="group_id").classes(
                     "w-full mt-4"
                 )
@@ -55,15 +53,11 @@ def register_grupos_page() -> None:
                 # Inline delete buttons below the table
                 for g in groups:
                     with ui.row().classes("items-center gap-4"):
-                        ui.label(g.name).classes(
-                            "text-sm text-gray-400 w-48"
-                        )
+                        ui.label(g.name).classes("text-sm text-gray-400 w-48")
                         ui.button(
                             "Eliminar",
                             icon="delete",
-                            on_click=lambda gid=g.group_id: _delete_group(
-                                gid
-                            ),
+                            on_click=lambda gid=g.group_id: _delete_group(gid),
                         ).props("flat size=sm")
 
             def _delete_group(group_id: UUID) -> None:
