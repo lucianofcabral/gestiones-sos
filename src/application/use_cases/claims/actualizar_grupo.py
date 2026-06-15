@@ -27,7 +27,10 @@ class ActualizarGrupo:
             raise ValueError(f"Ya existe un grupo con el nombre '{name}'")
 
         updated = GroupClaim(
-            group_id=group_id, name=name, created_at=existing.created_at
+            group_id=group_id,
+            name=name,
+            external_reference=existing.external_reference,
+            created_at=existing.created_at,
         )
         if self._repo.update(group_id, updated):
             return updated
