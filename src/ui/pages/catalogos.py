@@ -58,10 +58,14 @@ def _render_tab(repo, entity_name: str, entity_cls) -> None:
         return item.get_id() if hasattr(item, "get_id") else UUID(int=0)
 
     # ── Create form ──────────────────────────────────────────────────────
-    new_input = ui.input(
-        label=f"Nuevo {entity_name}",
-        placeholder=f"Ingrese nombre del {entity_name}...",
-    ).props("dense outlined").classes("min-w-[250px]")
+    new_input = (
+        ui.input(
+            label=f"Nuevo {entity_name}",
+            placeholder=f"Ingrese nombre del {entity_name}...",
+        )
+        .props("dense outlined")
+        .classes("min-w-[250px]")
+    )
 
     async def _add() -> None:
         name = (new_input.value or "").strip()
@@ -94,9 +98,11 @@ def _render_tab(repo, entity_name: str, entity_cls) -> None:
 
             with ui.row().classes("items-center gap-2 w-full py-1"):
                 # Inline name editor
-                inp = ui.input(value=item.name).classes(
-                    "flex-grow min-w-[200px]"
-                ).props("dense outlined")
+                inp = (
+                    ui.input(value=item.name)
+                    .classes("flex-grow min-w-[200px]")
+                    .props("dense outlined")
+                )
 
                 async def _save(inp=inp, eid=eid, orig=item.name) -> None:
                     val = (inp.value or "").strip()
@@ -147,9 +153,7 @@ def _render_tab(repo, entity_name: str, entity_cls) -> None:
                             dlg.close()
                             _refresh.refresh()
 
-                        ui.button("Eliminar", on_click=_delete).props(
-                            "color=negative"
-                        )
+                        ui.button("Eliminar", on_click=_delete).props("color=negative")
 
                 ui.button(
                     icon="delete",

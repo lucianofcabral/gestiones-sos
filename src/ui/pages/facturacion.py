@@ -143,9 +143,7 @@ def register_facturacion_page() -> None:
                 except Exception as e:
                     ui.notify(f"Error: {e}", type="negative")
 
-            def _edit_invoice_dialog(
-                dialog: ui.dialog, invoice, refresh_fn
-            ) -> None:
+            def _edit_invoice_dialog(dialog: ui.dialog, invoice, refresh_fn) -> None:
                 """Render edit dialog content for a single invoice."""
                 with dialog, ui.card():
                     ui.label("Editar Factura").classes("text-lg font-bold")
@@ -179,9 +177,7 @@ def register_facturacion_page() -> None:
                                 return
 
                             try:
-                                parsed_date = datetime.strptime(
-                                    date_str, "%Y-%m-%d"
-                                )
+                                parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
                             except ValueError:
                                 ui.notify(
                                     "Fecha inválida. Use YYYY-MM-DD",
@@ -192,9 +188,7 @@ def register_facturacion_page() -> None:
                             try:
                                 kwargs = {"invoice_number": num}
                                 for f in ("invoice_id", "period_id", "created_at"):
-                                    kwargs[f] = deepcopy(
-                                        getattr(invoice, f)
-                                    )
+                                    kwargs[f] = deepcopy(getattr(invoice, f))
                                 kwargs["emited_date"] = parsed_date
                                 kwargs["amount"] = float(amount)
 
