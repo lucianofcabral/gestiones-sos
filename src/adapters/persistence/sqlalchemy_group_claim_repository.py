@@ -31,6 +31,8 @@ class SqlAlchemyGroupClaimRepository:
         return GroupClaim(
             group_id=row.group_id,
             name=row.name,
+            external_reference=row.external_reference,
+            description=row.description,
             created_at=row.created_at,
         )
 
@@ -42,6 +44,8 @@ class SqlAlchemyGroupClaimRepository:
                 sa.insert(group_claims).values(
                     group_id=model.group_id,
                     name=model.name,
+                    external_reference=model.external_reference,
+                    description=model.description,
                     created_at=model.created_at,
                 )
             )
@@ -63,7 +67,11 @@ class SqlAlchemyGroupClaimRepository:
             result = conn.execute(
                 sa.update(group_claims)
                 .where(group_claims.c.group_id == id)
-                .values(name=model.name)
+                .values(
+                    name=model.name,
+                    external_reference=model.external_reference,
+                    description=model.description,
+                )
             )
         return result.rowcount > 0
 
