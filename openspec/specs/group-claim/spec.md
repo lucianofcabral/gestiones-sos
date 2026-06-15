@@ -2,13 +2,13 @@
 
 ## Purpose
 
-CRUD lifecycle for GroupClaim entities — create, list/search, update name, delete, and look up by associated claim ID or by group name. Groups allow multiple claims to enter together on the same invoice while staying individually registrable.
+CRUD lifecycle for GroupClaim entities — create, list/search, update name, delete, and look up by associated claim ID or by group name. Groups allow multiple claims to enter together on the same invoice while staying individually registrable. Since claim-polymorphism (v2), GroupClaim also serves as a batch entity with `external_reference` and `description` — used to group batch lots (GroupedClaims) that have no individual `gestion`.
 
 ## Requirements
 
 ### Requirement: Create Group Claim
 
-The system MUST create a GroupClaim with fields: `group_id` (UUID, auto-generated), `name` (string, 1–100 chars, unique), `created_at` (datetime, auto-generated).
+The system MUST create a GroupClaim with fields: `group_id` (UUID, auto-generated), `name` (string, 1–100 chars, unique), `external_reference` (string, 1–100 chars, unique), `description` (string, 0–500 chars, optional), `created_at` (datetime, auto-generated).
 
 When `name` already exists in the store, the system MUST NOT create a duplicate and MUST return the existing GroupClaim.
 
@@ -96,6 +96,26 @@ The system MUST return the GroupClaim associated with a given `claim_id` via a J
 - GIVEN no Claim for the given `claim_id`
 - WHEN `get_by_claim_id(claim_id)` is called
 - THEN the system returns `None`
+
+### Requirement: GroupClaim as Batch Entity
+
+GroupClaim SHALL serve as a batch entity with `external_reference` (required text, unique), `description` (optional text), and `created_at` (auto timestamp). Existing rows SHALL have `external_reference` set to their `name` via migration.
+
+#### Scenario: Batch entity creation
+
+- GIVEN an agent creates a new group claim batch
+- WHEN the system persists the `GroupClaim`
+- THEN `external_reference` SHALL be required and unique
+- AND `description` SHALL be optional
+- AND `created_at` SHALL be auto-populated
+
+#### Scenario: Migration of existing rows
+
+- GIVEN existing `GroupClaim` rows with `name = "Lote 2024-001"`
+- WHEN the migration runs
+- THEN each row SHALL have `external_reference = "Lote 2024-001"`
+- AND `name` SHALL remain unchanged
+- AND `description` SHALL be NULL
 
 ### Requirement: Update Group Claim Name
 

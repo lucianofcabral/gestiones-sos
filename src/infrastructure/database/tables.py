@@ -150,6 +150,25 @@ group_claims = sa.Table(
     metadata,
     sa.Column("group_id", sa.UUID, primary_key=True),
     sa.Column("name", sa.String(100), nullable=False, unique=True),
+    sa.Column("external_reference", sa.String(100), nullable=False, unique=True),
+    sa.Column("description", sa.String(255), nullable=True),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)
+
+grouped_claims = sa.Table(
+    "grouped_claims",
+    metadata,
+    sa.Column("grouped_claim_id", sa.UUID, primary_key=True),
+    sa.Column(
+        "claim_id", sa.UUID, sa.ForeignKey("claims.claim_id"), nullable=False
+    ),
+    sa.Column(
+        "group_claim_id",
+        sa.UUID,
+        sa.ForeignKey("group_claims.group_id"),
+        nullable=False,
+    ),
+    sa.Column("notes", sa.String(500), nullable=False, server_default=""),
     sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
 )
 

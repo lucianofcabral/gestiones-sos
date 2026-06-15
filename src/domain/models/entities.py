@@ -140,7 +140,16 @@ class SosClaim(BaseModel):
 class GroupClaim(BaseModel):
     group_id: UUID = Field(default_factory=uuid4)
     name: str = Field(min_length=1, max_length=100)
+    external_reference: str = Field(min_length=1, max_length=100)
+    description: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
 
+
+class GroupedClaim(BaseModel):
+    grouped_claim_id: UUID = Field(default_factory=uuid4)
+    claim_id: UUID = Field(default_factory=uuid4)
+    group_claim_id: UUID = Field(default_factory=uuid4)
+    notes: str = Field("", max_length=500)
     created_at: datetime = Field(default_factory=datetime.now)
 
 
