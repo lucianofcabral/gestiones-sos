@@ -8,6 +8,7 @@ from src.domain.models.entities import (
     CreditNote,
     Document,
     GroupClaim,
+    GroupedClaim,
     Invoice,
     Payment,
     PaymentVia,
@@ -99,6 +100,10 @@ class GroupClaimRepoPort(BaseRepo[GroupClaim], _DocReachable[GroupClaim], Protoc
     def get_by_claim_id(self, claim_id: UUID) -> GroupClaim: ...
     def get_by_group_name(self, group_name: str) -> GroupClaim: ...
     def get_by_text_like(self, text: str) -> list[GroupClaim]: ...
+
+
+class GroupedClaimRepoPort(BaseRepo[GroupedClaim], Protocol):
+    def get_by_claim_id(self, claim_id: UUID) -> GroupedClaim | None: ...
 
 
 class PaymentRepoPort(BaseRepo[Payment], _Activatable[Payment], Protocol):
