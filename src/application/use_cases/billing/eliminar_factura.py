@@ -1,4 +1,4 @@
-"""EliminarFactura — delete an Invoice by invoice_id with document integrity check."""
+"""EliminarFactura — inactivate an Invoice by invoice_id with document integrity check."""
 
 from uuid import UUID
 
@@ -6,7 +6,7 @@ from src.domain.ports.repositories import BillingRepoPort, DocumentRepoPort
 
 
 class EliminarFactura:
-    """Delete an Invoice by invoice_id.
+    """Inactivate an Invoice by invoice_id.
 
     Raises ValueError if any DocumentEntity references the invoice_id.
     Returns True on success, False if the invoice does not exist.
@@ -30,5 +30,4 @@ class EliminarFactura:
                 "No se puede eliminar una factura con documentos asociados"
             )
 
-        self._billing_repo.delete(invoice_id)
-        return True
+        return self._billing_repo.inactivate(invoice_id)

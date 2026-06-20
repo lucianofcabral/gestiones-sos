@@ -40,20 +40,6 @@ class InMemoryNcPaymentRepository:
     def get_by_ids(self, ids: list[UUID]) -> list[CreditNote]:
         return [n for n in self._store if n.nc_payment_id in ids]
 
-    # ── _Activatable ──────────────────────────────────────────────────────────
-
-    def activate(self, id: UUID) -> bool:
-        note = self.get_by_id(id)
-        if note:
-            return self.update(id, note.model_copy(update={"active": True}))
-        return False
-
-    def inactivate(self, id: UUID) -> bool:
-        note = self.get_by_id(id)
-        if note:
-            return self.update(id, note.model_copy(update={"active": False}))
-        return False
-
     # ── NcPaymentRepoPort extra ───────────────────────────────────────────────
 
     def deleteable(self, id: UUID) -> bool:

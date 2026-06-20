@@ -8,7 +8,6 @@ from src.domain.models.entities import CreditNote, Payment
 from src.domain.exceptions import (
     AgentNotConfiguredError,
     InvalidNCConfigurationError,
-    PeriodRequiredError,
 )
 from src.domain.ports.repositories import (
     AgentRepoPort,
@@ -47,7 +46,8 @@ class RegistrarPago:
     If the payment_via is NC (Nota de Crédito):
     - Payer MUST be SOS
     - Payee MUST be SM
-    - An NcPayment (CreditNote) is also created linked to this payment.
+    - An NcPayment (CreditNote) is also created linked to this payment
+      with an optional period_id (assigned later when SOS confirms the discount).
     """
 
     def __init__(
@@ -81,8 +81,6 @@ class RegistrarPago:
 
         # If NC, also create the NcPayment (CreditNote)
         if nc_via is not None and input_data.payment_via_id == nc_via.payment_via_id:
-            if input_data.period_id is None:
-                raise PeriodRequiredError("period_id is required for NC payments")
             self._nc_payment_repo.add(
                 CreditNote(
                     payment_id=payment.payment_id,

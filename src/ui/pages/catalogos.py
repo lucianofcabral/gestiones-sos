@@ -8,6 +8,7 @@ from nicegui import ui
 from src.domain.models.entities import Agent, ClaimKind, PaymentVia
 from src.infrastructure.container import Container
 from src.ui.components.shell import AppShell
+from src.ui.services.audit_helper import with_audit_user
 
 
 def register_catalogos_page() -> None:
@@ -67,6 +68,7 @@ def _render_tab(repo, entity_name: str, entity_cls) -> None:
         .classes("min-w-[250px]")
     )
 
+    @with_audit_user
     async def _add() -> None:
         name = (new_input.value or "").strip()
         if not name:
@@ -104,6 +106,7 @@ def _render_tab(repo, entity_name: str, entity_cls) -> None:
                     .props("dense outlined")
                 )
 
+                @with_audit_user
                 async def _save(inp=inp, eid=eid, orig=item.name) -> None:
                     val = (inp.value or "").strip()
                     if not val:
@@ -132,6 +135,7 @@ def _render_tab(repo, entity_name: str, entity_cls) -> None:
                 # Active/inactive toggle
                 sw = ui.switch(value=item.active).props("dense")
 
+                @with_audit_user
                 async def _toggle(sw=sw, eid=eid) -> None:
                     if sw.value:
                         repo.activate(eid)
@@ -148,6 +152,7 @@ def _render_tab(repo, entity_name: str, entity_cls) -> None:
                     with ui.row().classes("gap-2 justify-end mt-2"):
                         ui.button("Cancelar", on_click=dlg.close).props("flat")
 
+                        @with_audit_user
                         async def _delete(eid=eid, dlg=dlg) -> None:
                             repo.delete(eid)
                             dlg.close()

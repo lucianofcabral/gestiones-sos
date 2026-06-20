@@ -272,6 +272,43 @@ class TestBillingRepo:
         result = billing_repo.get_by_document(b"some content")
         assert result == []
 
+    # ── _Activatable ─────────────────────────────────────────────────────────
+
+    def test_activate_sets_active_true(
+        self, billing_repo: InMemoryBillingRepository
+    ) -> None:
+        inv = _seed_invoice(billing_repo)
+        billing_repo.inactivate(inv.invoice_id)
+
+        result = billing_repo.activate(inv.invoice_id)
+
+        assert result is True
+        stored = billing_repo.get_by_id(inv.invoice_id)
+        assert stored is not None
+        assert stored.active is True
+
+    def test_inactivate_sets_active_false(
+        self, billing_repo: InMemoryBillingRepository
+    ) -> None:
+        inv = _seed_invoice(billing_repo)
+
+        result = billing_repo.inactivate(inv.invoice_id)
+
+        assert result is True
+        stored = billing_repo.get_by_id(inv.invoice_id)
+        assert stored is not None
+        assert stored.active is False
+
+    def test_activate_non_existent_returns_false(
+        self, billing_repo: InMemoryBillingRepository
+    ) -> None:
+        assert billing_repo.activate(uuid4()) is False
+
+    def test_inactivate_non_existent_returns_false(
+        self, billing_repo: InMemoryBillingRepository
+    ) -> None:
+        assert billing_repo.inactivate(uuid4()) is False
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # RegistrarFactura Use Case Tests
@@ -398,7 +435,9 @@ class TestEliminarFactura:
         result = uc.execute(inv.invoice_id)
 
         assert result is True
-        assert billing_repo.get_by_id(inv.invoice_id) is None
+        stored = billing_repo.get_by_id(inv.invoice_id)
+        assert stored is not None
+        assert stored.active is False
 
     def test_delete_nonexistent_invoice_returns_false(
         self,

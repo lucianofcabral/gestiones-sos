@@ -38,7 +38,6 @@ class SqlAlchemyNcPaymentRepository:
             payment_id=row.payment_id,
             period_id=row.period_id,
             delivered=row.delivered,
-            active=row.active,
             created_date=row.created_date,
         )
 
@@ -52,7 +51,6 @@ class SqlAlchemyNcPaymentRepository:
                     payment_id=model.payment_id,
                     period_id=model.period_id,
                     delivered=model.delivered,
-                    active=model.active,
                     created_date=model.created_date,
                 )
             )
@@ -80,7 +78,6 @@ class SqlAlchemyNcPaymentRepository:
                     payment_id=model.payment_id,
                     period_id=model.period_id,
                     delivered=model.delivered,
-                    active=model.active,
                     created_date=model.created_date,
                 )
             )
@@ -105,26 +102,6 @@ class SqlAlchemyNcPaymentRepository:
                 sa.select(nc_payments).where(nc_payments.c.nc_payment_id.in_(ids))
             ).fetchall()
         return [self._row_to_nc_payment(r) for r in rows]
-
-    # ── _Activatable ──────────────────────────────────────────────────────────
-
-    def activate(self, id: UUID) -> bool:
-        with self._get_conn() as conn:
-            result = conn.execute(
-                sa.update(nc_payments)
-                .where(nc_payments.c.nc_payment_id == id)
-                .values(active=True)
-            )
-        return result.rowcount > 0
-
-    def inactivate(self, id: UUID) -> bool:
-        with self._get_conn() as conn:
-            result = conn.execute(
-                sa.update(nc_payments)
-                .where(nc_payments.c.nc_payment_id == id)
-                .values(active=False)
-            )
-        return result.rowcount > 0
 
     # ── NcPaymentRepoPort extra ───────────────────────────────────────────────
 

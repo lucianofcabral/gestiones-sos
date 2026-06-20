@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 from src.domain.models.entities import Document
 from src.domain.ports.repositories import DocumentRepoPort
-from src.infrastructure.storage.filesystem_storage import FilesystemStorageService
+from src.domain.ports.storage import StoragePort
 
 
 @dataclass
@@ -29,7 +29,7 @@ class SubirDocumento:
     def __init__(
         self,
         doc_repo: DocumentRepoPort,
-        storage: FilesystemStorageService,
+        storage: StoragePort,
     ):
         self._doc_repo = doc_repo
         self._storage = storage

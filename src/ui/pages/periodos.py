@@ -5,6 +5,7 @@ from nicegui import ui
 from src.domain.models.entities import Period
 from src.infrastructure.container import Container
 from src.ui.components.shell import AppShell
+from src.ui.services.audit_helper import with_audit_user
 
 _MESES_ES = [
     "",
@@ -46,6 +47,7 @@ def register_periodos_page() -> None:
                     options={m: _MESES_ES[m].capitalize() for m in range(1, 13)},
                 ).classes("w-full")
 
+                @with_audit_user
                 async def _create_period() -> None:
                     year = year_input.value
                     month = month_select.value
@@ -98,6 +100,7 @@ def register_periodos_page() -> None:
                         _delete_button(period, _render_periods)
 
             def _confirm_delete(period: Period, refresh_fn) -> None:
+                @with_audit_user
                 def _do_delete() -> None:
                     try:
                         inp = container.eliminar_periodo.Input(

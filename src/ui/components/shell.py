@@ -1,6 +1,10 @@
 """AppShell context manager — dark-themed layout with auth guard, header, and sidebar."""
 
+from uuid import UUID
+
 from nicegui import app, ui
+
+from src.application.services.audit_context import set_audit_user
 
 
 class AppShell:
@@ -25,6 +29,10 @@ class AppShell:
         if "token" not in app.storage.user:
             ui.navigate.to("/login")
             return
+
+        user_id_raw = app.storage.user.get("user_id")
+        if user_id_raw:
+            set_audit_user(UUID(user_id_raw))
 
         ui.dark_mode().enable()
 
@@ -88,5 +96,6 @@ class AppShell:
 
     @staticmethod
     async def _logout() -> None:
+        set_audit_user(None)
         app.storage.user.clear()
         ui.navigate.to("/login")

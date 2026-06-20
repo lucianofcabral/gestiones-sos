@@ -53,7 +53,7 @@ class DocumentEntity(BaseModel):
 
 class Period(BaseModel):
     period_id: UUID = Field(default_factory=uuid4)
-    year: int = Field(0, ge=2020, lt=2040)
+    year: int = Field(0, ge=2020, lt=2050)
     month: int = Field(0, ge=1, le=12)
     created_at: datetime = Field(default_factory=datetime.now)
 
@@ -87,6 +87,7 @@ class Invoice(BaseModel):
     period_id: UUID = Field(default_factory=uuid4)
     emited_date: datetime
     amount: float = Field(gt=0)
+    active: bool = True
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -142,6 +143,7 @@ class GroupClaim(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     external_reference: str = Field(min_length=1, max_length=100)
     description: str | None = None
+    active: bool = True
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -167,7 +169,6 @@ class Payment(BaseModel):
 class CreditNote(BaseModel):
     nc_payment_id: UUID = Field(default_factory=uuid4)
     payment_id: UUID = Field(default_factory=uuid4)
-    period_id: UUID = Field(default_factory=uuid4)
+    period_id: UUID | None = None
     delivered: bool = Field(False)
-    active: bool = True
     created_date: datetime = Field(default_factory=datetime.now)

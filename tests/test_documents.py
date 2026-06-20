@@ -10,6 +10,7 @@ import pytest
 from src.adapters.persistence.inmemory_document_repository import (
     InMemoryDocumentRepository,
 )
+from src.adapters.persistence.inmemory_storage import InMemoryStorageService
 from src.application.use_cases.documents.subir_documento import (
     SubirDocumento,
     SubirDocumentoInput,
@@ -379,21 +380,19 @@ class TestInMemoryDocumentRepositoryDocumentPort:
 
 @pytest.fixture
 def subir_use_case() -> tuple[
-    SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+    SubirDocumento, InMemoryDocumentRepository, InMemoryStorageService
 ]:
     repo = InMemoryDocumentRepository()
-    tmp = tempfile.TemporaryDirectory()
-    storage_svc = FilesystemStorageService(base_path=tmp.name)
+    storage_svc = InMemoryStorageService()
     use_case = SubirDocumento(repo, storage_svc)
     yield use_case, repo, storage_svc
-    tmp.cleanup()
 
 
 class TestSubirDocumento:
     def test_upload_new_file(
         self,
         subir_use_case: tuple[
-            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+            SubirDocumento, InMemoryDocumentRepository, InMemoryStorageService
         ],
     ) -> None:
         use_case, repo, _ = subir_use_case
@@ -423,7 +422,7 @@ class TestSubirDocumento:
     def test_upload_persists_entity_link(
         self,
         subir_use_case: tuple[
-            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+            SubirDocumento, InMemoryDocumentRepository, InMemoryStorageService
         ],
     ) -> None:
         use_case, repo, _ = subir_use_case
@@ -449,7 +448,7 @@ class TestSubirDocumento:
     def test_upload_same_content_returns_existing_document_id(
         self,
         subir_use_case: tuple[
-            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+            SubirDocumento, InMemoryDocumentRepository, InMemoryStorageService
         ],
     ) -> None:
         use_case, repo, storage_svc = subir_use_case
@@ -491,7 +490,7 @@ class TestSubirDocumento:
     def test_upload_with_description(
         self,
         subir_use_case: tuple[
-            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+            SubirDocumento, InMemoryDocumentRepository, InMemoryStorageService
         ],
     ) -> None:
         use_case, repo, _ = subir_use_case
@@ -514,7 +513,7 @@ class TestSubirDocumento:
     def test_upload_with_uploaded_by(
         self,
         subir_use_case: tuple[
-            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+            SubirDocumento, InMemoryDocumentRepository, InMemoryStorageService
         ],
     ) -> None:
         use_case, repo, _ = subir_use_case
@@ -537,7 +536,7 @@ class TestSubirDocumento:
     def test_upload_different_contents_produce_different_ids(
         self,
         subir_use_case: tuple[
-            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+            SubirDocumento, InMemoryDocumentRepository, InMemoryStorageService
         ],
     ) -> None:
         use_case, _, _ = subir_use_case
@@ -569,7 +568,7 @@ class TestSubirDocumento:
     def test_upload_without_entity_type(
         self,
         subir_use_case: tuple[
-            SubirDocumento, InMemoryDocumentRepository, FilesystemStorageService
+            SubirDocumento, InMemoryDocumentRepository, InMemoryStorageService
         ],
     ) -> None:
         """Entity_type must be provided; test empty string behavior."""

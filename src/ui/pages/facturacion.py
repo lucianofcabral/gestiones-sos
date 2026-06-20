@@ -8,6 +8,7 @@ from nicegui import ui
 
 from src.infrastructure.container import Container
 from src.ui.components.shell import AppShell
+from src.ui.services.audit_helper import with_audit_user
 
 
 def register_facturacion_page() -> None:
@@ -51,6 +52,7 @@ def register_facturacion_page() -> None:
                     precision=2,
                 )
 
+                @with_audit_user
                 async def _create_invoice() -> None:
                     inv_number = inv_number_input.value.strip()
                     period_id = period_select_form.value
@@ -133,6 +135,7 @@ def register_facturacion_page() -> None:
                             ),
                         ).props("flat dense round color=negative size=sm")
 
+            @with_audit_user
             def _delete_invoice(invoice_id: UUID, refresh_fn) -> None:
                 try:
                     container.eliminar_factura.execute(invoice_id)
@@ -164,6 +167,7 @@ def register_facturacion_page() -> None:
                     with ui.row().classes("gap-2 justify-end mt-2"):
                         ui.button("Cancelar", on_click=dialog.close).props("flat")
 
+                        @with_audit_user
                         async def _save() -> None:
                             num = (num_input.value or "").strip()
                             date_str = (date_input.value or "").strip()

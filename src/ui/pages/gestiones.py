@@ -16,6 +16,7 @@ from src.application.use_cases.claims.obtener_gestiones import (
 from src.domain.exceptions import ClaimHasActivePaymentsError, ClaimNotFoundError
 from src.infrastructure.container import Container
 from src.ui.components.shell import AppShell
+from src.ui.services.audit_helper import with_audit_user
 
 
 def register_gestiones_page() -> None:
@@ -35,6 +36,7 @@ def register_gestiones_page() -> None:
             toggle.on("update:model-value", _on_toggle_change)
 
             # ── Delete handler ────────────────────────────────────────────────
+            @with_audit_user
             def _delete_gestion(claim_id: str, claim_kind_name: str,
                                 dialog: ui.dialog) -> None:
                 try:
@@ -149,5 +151,8 @@ def register_gestiones_page() -> None:
                         ).on(
                             "click",
                             delete_dialog.open,
-                            stop_propagation=True,
+                            js_handler="(e) => { e.stopPropagation(); emit(); }",
                         ).props("flat dense round color=negative size=sm")
+
+            # ── Initial render ─────────────────────────────────────────────────
+            _render_gestiones()

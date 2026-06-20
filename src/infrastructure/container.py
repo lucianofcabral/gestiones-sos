@@ -1,5 +1,7 @@
 import os
 
+from src.infrastructure.config import Settings
+
 from src.adapters.persistence.sqlalchemy_document_repository import (
     SqlAlchemyDocumentRepository,
 )
@@ -71,10 +73,8 @@ from src.application.use_cases.claims.eliminar_grouped_claim import (
     EliminarGroupedClaim,
 )
 from src.application.use_cases.claims.registrar_grupo import RegistrarGrupo
-from src.application.use_cases.payments.activar_nc import ActivarNotaCredito
 from src.application.use_cases.payments.activar_pago import ActivarPago
 from src.application.use_cases.payments.actualizar_pago import ActualizarPago
-from src.application.use_cases.payments.inactivar_nc import InactivarNotaCredito
 from src.application.use_cases.payments.inactivar_pago import InactivarPago
 from src.application.use_cases.payments.marcar_nc_entregada import (
     MarcarNotaCreditoEntregada,
@@ -100,6 +100,11 @@ from src.infrastructure.storage.filesystem_storage import FilesystemStorageServi
 from src.domain.services.can_activate_payment import CanActivatePaymentService
 from src.domain.services.can_inactivate_payment import CanInactivatePaymentService
 from src.domain.services.payment_update_rules import PaymentUpdateRules
+from src.application.services.audit_context import set_audit_user
+from src.application.services.audit_wrapper import AuditRepositoryWrapper
+from src.adapters.persistence.sqlalchemy_audit_repository import (
+    SqlAlchemyAuditRepository,
+)
 from src.ui.routes.auth import AuthRouter
 
 
@@ -184,8 +189,8 @@ def _build_billing_repo():
     return SqlAlchemyBillingRepository()
 
 
-def _build_storage_service() -> FilesystemStorageService:
-    return FilesystemStorageService()
+def _build_storage_service(settings: Settings) -> FilesystemStorageService:
+    return FilesystemStorageService(base_path=settings.storage_path)
 
 
 # ── Container ─────────────────────────────────────────────────────────────────
@@ -195,7 +200,9 @@ class Container:
     _instance: "Container | None" = None
 
     def __init__(self):
-        jwt_secret = os.environ.get("JWT_SECRET")
+        self._settings = Settings()
+
+        jwt_secret = self._settings.jwt_secret
         if not jwt_secret:
             raise RuntimeError("JWT_SECRET environment variable is not set")
 
@@ -215,9 +222,52 @@ class Container:
         self._group_claim_repo = _build_group_claim_repo()
         self._grouped_claim_repo = _build_grouped_claim_repo()
 
+        # ── Audit ────────────────────────────────────────────────────────────────
+        self._audit_repo = SqlAlchemyAuditRepository()
+        self._payment_repo = AuditRepositoryWrapper(
+            inner=self._payment_repo,
+            audit_repo=self._audit_repo,
+            entity_type="payment",
+        )
+        self._billing_repo = AuditRepositoryWrapper(
+            inner=self._billing_repo,
+            audit_repo=self._audit_repo,
+            entity_type="invoice",
+        )
+        self._group_claim_repo = AuditRepositoryWrapper(
+            inner=self._group_claim_repo,
+            audit_repo=self._audit_repo,
+            entity_type="group_claim",
+        )
+        self._period_repo = AuditRepositoryWrapper(
+            inner=self._period_repo,
+            audit_repo=self._audit_repo,
+            entity_type="period",
+        )
+        self._agent_repo = AuditRepositoryWrapper(
+            inner=self._agent_repo,
+            audit_repo=self._audit_repo,
+            entity_type="agent",
+        )
+        self._payment_via_repo = AuditRepositoryWrapper(
+            inner=self._payment_via_repo,
+            audit_repo=self._audit_repo,
+            entity_type="payment_via",
+        )
+        self._claim_kind_repo = AuditRepositoryWrapper(
+            inner=self._claim_kind_repo,
+            audit_repo=self._audit_repo,
+            entity_type="claim_kind",
+        )
+
         # Document repos and use cases
         self._document_repo = _build_document_repo()
-        self._storage_service = _build_storage_service()
+        self._document_repo = AuditRepositoryWrapper(
+            inner=self._document_repo,
+            audit_repo=self._audit_repo,
+            entity_type="document",
+        )
+        self._storage_service = _build_storage_service(self._settings)
         self._subir_documento = SubirDocumento(
             self._document_repo, self._storage_service
         )
@@ -236,8 +286,8 @@ class Container:
 
         # Claim registration use cases
         self._obtener_claim_kinds = ObtenerClaimKinds(self._claim_kind_repo)
-        self._registrar_gestion_sos = RegistrarGestionSOS(SqlAlchemyUnitOfWork())
-        self._registrar_grouped_claim = RegistrarGroupedClaim(SqlAlchemyUnitOfWork())
+        self._registrar_gestion_sos = RegistrarGestionSOS(SqlAlchemyUnitOfWork(enable_audit=True))
+        self._registrar_grouped_claim = RegistrarGroupedClaim(SqlAlchemyUnitOfWork(enable_audit=True))
 
         # Billing use cases
         self._registrar_factura = RegistrarFactura(self._billing_repo)
@@ -274,8 +324,7 @@ class Container:
             payment_repo=self._payment_repo,
         )
         self._eliminar_grouped_claim = EliminarGroupedClaim(
-            claim_repo=self._claim_repo,
-            grouped_claim_repo=self._grouped_claim_repo,
+            uow=SqlAlchemyUnitOfWork(enable_audit=True),
             payment_repo=self._payment_repo,
         )
         self._obtener_gestiones = ObtenerGestiones(
@@ -317,9 +366,6 @@ class Container:
         self._marcar_nc_entregada = MarcarNotaCreditoEntregada(
             nc_payment_repo=self._nc_payment_repo
         )
-        self._inactivar_nc = InactivarNotaCredito(nc_payment_repo=self._nc_payment_repo)
-        self._activar_nc = ActivarNotaCredito(nc_payment_repo=self._nc_payment_repo)
-
         self._auth_router = AuthRouter(
             user_repo=self._user_repo,
             password_port=self._password_adapter,
@@ -523,14 +569,6 @@ class Container:
     @property
     def marcar_nc_entregada(self) -> MarcarNotaCreditoEntregada:
         return self._marcar_nc_entregada
-
-    @property
-    def inactivar_nc(self) -> InactivarNotaCredito:
-        return self._inactivar_nc
-
-    @property
-    def activar_nc(self) -> ActivarNotaCredito:
-        return self._activar_nc
 
     @property
     def auth_router(self) -> AuthRouter:

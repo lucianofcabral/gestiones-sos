@@ -34,6 +34,7 @@ class SqlAlchemyBillingRepository:
             period_id=row.period_id,
             emited_date=row.emited_date,
             amount=float(row.amount),
+            active=row.active,
             created_at=row.created_at,
         )
 
@@ -48,6 +49,7 @@ class SqlAlchemyBillingRepository:
                     period_id=model.period_id,
                     emited_date=model.emited_date,
                     amount=model.amount,
+                    active=model.active,
                     created_at=model.created_at,
                 )
             )
@@ -116,3 +118,19 @@ class SqlAlchemyBillingRepository:
 
     def get_by_document(self, document: bytes) -> list[Invoice]:
         return []
+
+    # ── _Activatable ─────────────────────────────────────────────────────────
+
+    def activate(self, id: UUID) -> bool:
+        with self._get_conn() as conn:
+            result = conn.execute(
+                sa.update(invoices).where(invoices.c.invoice_id == id).values(active=True)
+            )
+        return result.rowcount > 0
+
+    def inactivate(self, id: UUID) -> bool:
+        with self._get_conn() as conn:
+            result = conn.execute(
+                sa.update(invoices).where(invoices.c.invoice_id == id).values(active=False)
+            )
+        return result.rowcount > 0
