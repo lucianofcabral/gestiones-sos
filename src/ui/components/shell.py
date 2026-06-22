@@ -86,6 +86,7 @@ class AppShell:
             ("Documentos", "/documentos", "description"),
             ("Gestiones", "/gestiones", "assignment"),
             ("Nueva Gestión", "/gestiones/nueva", "add_circle"),
+            ("Importar", "/gestiones/importar", "upload"),
             ("Pagos", "/pagos", "payments"),
             ("Facturación", "/facturas", "receipt"),
             ("Períodos", "/periodos", "calendar_month"),
