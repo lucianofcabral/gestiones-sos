@@ -38,16 +38,6 @@ class InMemorySosClaimRepository:
     def get_by_ids(self, ids: list[UUID]) -> list[SosClaim]:
         return [s for s in self._store if s.sos_claim_id in ids]
 
-    # ── _Activatable ──────────────────────────────────────────────────────────
-
-    def activate(self, id: UUID) -> bool:
-        # SosClaim doesn't have an `active` field; no-op for protocol compat
-        return self.get_by_id(id) is not None
-
-    def inactivate(self, id: UUID) -> bool:
-        # SosClaim doesn't have an `active` field; no-op for protocol compat
-        return self.get_by_id(id) is not None
-
     # ── SosClaimRepoPort extra ────────────────────────────────────────────────
 
     def get_by_number(self, claim_number: int) -> SosClaim | None:

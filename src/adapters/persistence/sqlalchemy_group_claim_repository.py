@@ -33,6 +33,7 @@ class SqlAlchemyGroupClaimRepository:
             name=row.name,
             external_reference=row.external_reference,
             description=row.description,
+            active=row.active,
             created_at=row.created_at,
         )
 
@@ -133,3 +134,23 @@ class SqlAlchemyGroupClaimRepository:
 
     def get_by_document(self, document: bytes) -> list[GroupClaim]:
         return []
+
+    # ── _Activatable ─────────────────────────────────────────────────────────
+
+    def activate(self, id: UUID) -> bool:
+        with self._get_conn() as conn:
+            result = conn.execute(
+                sa.update(group_claims)
+                .where(group_claims.c.group_id == id)
+                .values(active=True)
+            )
+        return result.rowcount > 0
+
+    def inactivate(self, id: UUID) -> bool:
+        with self._get_conn() as conn:
+            result = conn.execute(
+                sa.update(group_claims)
+                .where(group_claims.c.group_id == id)
+                .values(active=False)
+            )
+        return result.rowcount > 0

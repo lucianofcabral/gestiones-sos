@@ -429,12 +429,19 @@ def eliminar_payment_repo() -> InMemoryPaymentRepository:
 
 
 @pytest.fixture
-def eliminar_uc(
+def eliminar_uow(
     eliminar_claim_repo: InMemoryClaimRepository,
     eliminar_grouped_repo: InMemoryGroupedClaimRepository,
+) -> FakeUnitOfWork:
+    return FakeUnitOfWork(eliminar_claim_repo, InMemorySosClaimRepository(), eliminar_grouped_repo)
+
+
+@pytest.fixture
+def eliminar_uc(
+    eliminar_uow: FakeUnitOfWork,
     eliminar_payment_repo: InMemoryPaymentRepository,
 ) -> EliminarGroupedClaim:
-    return EliminarGroupedClaim(eliminar_claim_repo, eliminar_grouped_repo, eliminar_payment_repo)
+    return EliminarGroupedClaim(uow=eliminar_uow, payment_repo=eliminar_payment_repo)
 
 
 def _seed_grouped_claim_for_delete(
@@ -484,15 +491,14 @@ def test_eliminar_grouped_happy(
     eliminar_claim_repo: InMemoryClaimRepository,
     eliminar_grouped_repo: InMemoryGroupedClaimRepository,
     eliminar_payment_repo: InMemoryPaymentRepository,
+    eliminar_uow: FakeUnitOfWork,
 ) -> None:
     """Happy path: soft-deletes Claim, hard-deletes GroupedClaim."""
     # No active payments — deletion should succeed
     claim, _ = _seed_grouped_claim_for_delete(
         eliminar_claim_repo, eliminar_grouped_repo, None
     )
-    uc = EliminarGroupedClaim(
-        eliminar_claim_repo, eliminar_grouped_repo, eliminar_payment_repo
-    )
+    uc = EliminarGroupedClaim(uow=eliminar_uow, payment_repo=eliminar_payment_repo)
 
     result = uc.execute(EliminarGroupedClaimInput(claim_id=claim.claim_id))
 

@@ -61,6 +61,20 @@ class InMemoryGroupClaimRepository:
             None,
         )
 
+    # ── _Activatable ─────────────────────────────────────────────────────────
+
+    def activate(self, id: UUID) -> bool:
+        group = self.get_by_id(id)
+        if group:
+            return self.update(id, group.model_copy(update={"active": True}))
+        return False
+
+    def inactivate(self, id: UUID) -> bool:
+        group = self.get_by_id(id)
+        if group:
+            return self.update(id, group.model_copy(update={"active": False}))
+        return False
+
     # ── _DocReachable stubs ──────────────────────────────────────────────────
 
     def get_by_document_id(self, document_id: UUID) -> list[GroupClaim]:

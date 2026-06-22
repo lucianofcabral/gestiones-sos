@@ -112,26 +112,6 @@ class SqlAlchemySosClaimRepository:
             ).fetchall()
         return [self._row_to_sos_claim(r) for r in rows]
 
-    # ── _Activatable ──────────────────────────────────────────────────────────
-
-    def activate(self, id: UUID) -> bool:
-        with self._get_conn() as conn:
-            result = conn.execute(
-                sa.update(sos_claims)
-                .where(sos_claims.c.sos_claim_id == id)
-                .values(active=True)
-            )
-        return result.rowcount > 0
-
-    def inactivate(self, id: UUID) -> bool:
-        with self._get_conn() as conn:
-            result = conn.execute(
-                sa.update(sos_claims)
-                .where(sos_claims.c.sos_claim_id == id)
-                .values(active=False)
-            )
-        return result.rowcount > 0
-
     # ── SosClaimRepoPort extra ────────────────────────────────────────────────
 
     def get_claims_by_claim_id(self, claim_id: UUID) -> list[SosClaim]:

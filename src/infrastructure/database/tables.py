@@ -59,7 +59,6 @@ sos_claims = sa.Table(
     sa.Column("response_user", sa.String(100), nullable=False, server_default=""),
     sa.Column("status", sa.String(50), nullable=False, server_default=""),
     sa.Column("itr", sa.Integer, nullable=False, server_default="0"),
-    sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
 )
 
 payments = sa.Table(
@@ -84,9 +83,8 @@ nc_payments = sa.Table(
     sa.Column(
         "payment_id", sa.UUID, sa.ForeignKey("payments.payment_id"), nullable=False
     ),
-    sa.Column("period_id", sa.UUID, sa.ForeignKey("periods.period_id"), nullable=False),
+    sa.Column("period_id", sa.UUID, sa.ForeignKey("periods.period_id"), nullable=True),
     sa.Column("delivered", sa.Boolean, nullable=False, server_default="false"),
-    sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
     sa.Column(
         "created_date", sa.DateTime, nullable=False, server_default=sa.func.now()
     ),
@@ -153,6 +151,7 @@ group_claims = sa.Table(
     sa.Column("external_reference", sa.String(100), nullable=False, unique=True),
     sa.Column("description", sa.String(255), nullable=True),
     sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+    sa.Column("active", sa.Boolean, nullable=False, server_default=sa.text("true")),
 )
 
 grouped_claims = sa.Table(
@@ -180,5 +179,19 @@ invoices = sa.Table(
     sa.Column("period_id", sa.UUID, sa.ForeignKey("periods.period_id"), nullable=False),
     sa.Column("emited_date", sa.DateTime, nullable=False),
     sa.Column("amount", sa.Numeric(12, 2), nullable=False),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+    sa.Column("active", sa.Boolean, nullable=False, server_default=sa.text("true")),
+)
+
+audit_log = sa.Table(
+    "audit_log",
+    metadata,
+    sa.Column("id", sa.BigInteger, primary_key=True, autoincrement=True),
+    sa.Column("entity_type", sa.String(50), nullable=False),
+    sa.Column("entity_id", sa.UUID, nullable=False),
+    sa.Column("action", sa.String(20), nullable=False),
+    sa.Column("old_values", sa.JSON, nullable=True),
+    sa.Column("new_values", sa.JSON, nullable=True),
+    sa.Column("performed_by", sa.UUID, sa.ForeignKey("users.user_id"), nullable=True),
     sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
 )

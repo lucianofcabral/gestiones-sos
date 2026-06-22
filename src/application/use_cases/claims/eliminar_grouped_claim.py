@@ -5,12 +5,23 @@ Idempotent on the Claim: calling this on an already-inactive claim is a no-op
 that still returns success=True.
 """
 
+"""EliminarGroupedClaim — soft-delete a Claim and hard-delete its GroupedClaim.
+
+Uses UnitOfWork so both operations are atomic: if either fails, neither is
+persisted.
+
+Guard: if the claim has any active Payment, deletion is blocked.
+Idempotent on the Claim: calling this on an already-inactive claim is a no-op
+that still returns success=True.
+"""
+
 from uuid import UUID
 
 from pydantic import BaseModel
 
 from src.domain.exceptions import ClaimHasActivePaymentsError, ClaimNotFoundError
-from src.domain.ports.repositories import ClaimRepoPort, GroupedClaimRepoPort, PaymentRepoPort
+from src.domain.ports.repositories import PaymentRepoPort
+from src.domain.ports.uow import UnitOfWork
 
 
 # ── Input ─────────────────────────────────────────────────────────────────────
@@ -32,34 +43,35 @@ class EliminarGroupedClaimOutput(BaseModel):
 
 
 class EliminarGroupedClaim:
+    """Eliminar un GroupedClaim con atomicidad vía UnitOfWork."""
+
     def __init__(
         self,
-        claim_repo: ClaimRepoPort,
-        grouped_claim_repo: GroupedClaimRepoPort,
+        uow: UnitOfWork,
         payment_repo: PaymentRepoPort | None = None,
     ) -> None:
-        self._claim_repo = claim_repo
-        self._grouped_claim_repo = grouped_claim_repo
+        self._uow = uow
         self._payment_repo = payment_repo
 
     def execute(self, input_data: EliminarGroupedClaimInput) -> EliminarGroupedClaimOutput:
-        claim = self._claim_repo.get_by_id(input_data.claim_id)
-        if claim is None:
-            raise ClaimNotFoundError("Claim not found")
+        with self._uow as uow:
+            claim = uow.claims.get_by_id(input_data.claim_id)
+            if claim is None:
+                raise ClaimNotFoundError("Claim not found")
 
-        # Payment guard: check for active payments before deleting
-        if self._payment_repo is not None:
-            payments = self._payment_repo.get_by_claim_id(input_data.claim_id)
-            if any(p.active for p in payments):
-                raise ClaimHasActivePaymentsError("Claim has active payments")
+            # Payment guard: check for active payments before deleting
+            if self._payment_repo is not None:
+                payments = self._payment_repo.get_by_claim_id(input_data.claim_id)
+                if any(p.active for p in payments):
+                    raise ClaimHasActivePaymentsError("Claim has active payments")
 
-        # Hard-delete the GroupedClaim record (no active field on entity)
-        grouped = self._grouped_claim_repo.get_by_claim_id(input_data.claim_id)
-        if grouped is not None:
-            self._grouped_claim_repo.delete(grouped.grouped_claim_id)
+            # Hard-delete the GroupedClaim record (no active field on entity)
+            grouped = uow.grouped_claims.get_by_claim_id(input_data.claim_id)
+            if grouped is not None:
+                uow.grouped_claims.delete(grouped.grouped_claim_id)
 
-        # Soft-delete the Claim
-        self._claim_repo.inactivate(input_data.claim_id)
+            # Soft-delete the Claim
+            uow.claims.inactivate(input_data.claim_id)
 
         return EliminarGroupedClaimOutput(
             claim_id=input_data.claim_id,

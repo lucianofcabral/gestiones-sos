@@ -327,9 +327,8 @@ def _credit_note(**overrides: object) -> CreditNote:
     defaults: dict[str, object] = {
         "nc_payment_id": uuid4(),
         "payment_id": uuid4(),
-        "period_id": uuid4(),
+        "period_id": None,
         "delivered": False,
-        "active": True,
         "created_date": datetime.now(),
     }
     merged = {**defaults, **overrides}
@@ -356,7 +355,6 @@ def test_nc_add_and_get_by_id(nc_repo: InMemoryNcPaymentRepository) -> None:
     assert result is not None
     assert result.nc_payment_id == note.nc_payment_id
     assert result.delivered is False
-    assert result.active is True
 
 
 def test_nc_get_by_id_not_found(nc_repo: InMemoryNcPaymentRepository) -> None:
@@ -404,7 +402,7 @@ def test_nc_update_returns_true(nc_repo: InMemoryNcPaymentRepository) -> None:
     """update returns True and changes fields."""
     seeded = _seed_nc(nc_repo, n=1)
     note = seeded[0]
-    updated = note.model_copy(update={"delivered": True, "active": False})
+    updated = note.model_copy(update={"delivered": True})
 
     result = nc_repo.update(note.nc_payment_id, updated)
 
@@ -412,7 +410,6 @@ def test_nc_update_returns_true(nc_repo: InMemoryNcPaymentRepository) -> None:
     stored = nc_repo.get_by_id(note.nc_payment_id)
     assert stored is not None
     assert stored.delivered is True
-    assert stored.active is False
 
 
 def test_nc_update_non_existent_returns_false(
@@ -464,54 +461,6 @@ def test_nc_get_by_ids_empty_list(
 
 
 # ── _Activatable: activate / inactivate ──────────────────────────────────────
-
-
-def test_nc_activate_sets_active_true(
-    nc_repo: InMemoryNcPaymentRepository,
-) -> None:
-    """activate sets active=True on a credit note."""
-    seeded = _seed_nc(nc_repo, n=1)
-    note_id = seeded[0].nc_payment_id
-
-    nc_repo.inactivate(note_id)
-    stored = nc_repo.get_by_id(note_id)
-    assert stored is not None
-    assert stored.active is False
-
-    result = nc_repo.activate(note_id)
-    assert result is True
-    stored = nc_repo.get_by_id(note_id)
-    assert stored is not None
-    assert stored.active is True
-
-
-def test_nc_inactivate_sets_active_false(
-    nc_repo: InMemoryNcPaymentRepository,
-) -> None:
-    """inactivate sets active=False on a credit note."""
-    seeded = _seed_nc(nc_repo, n=1)
-    note_id = seeded[0].nc_payment_id
-
-    result = nc_repo.inactivate(note_id)
-
-    assert result is True
-    stored = nc_repo.get_by_id(note_id)
-    assert stored is not None
-    assert stored.active is False
-
-
-def test_nc_activate_non_existent_returns_false(
-    nc_repo: InMemoryNcPaymentRepository,
-) -> None:
-    """activate on non-existent id returns False."""
-    assert nc_repo.activate(uuid4()) is False
-
-
-def test_nc_inactivate_non_existent_returns_false(
-    nc_repo: InMemoryNcPaymentRepository,
-) -> None:
-    """inactivate on non-existent id returns False."""
-    assert nc_repo.inactivate(uuid4()) is False
 
 
 # ── NcPaymentRepoPort custom ─────────────────────────────────────────────────

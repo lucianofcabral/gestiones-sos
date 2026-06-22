@@ -57,14 +57,7 @@ from src.application.use_cases.payments.marcar_nc_entregada import (
     MarcarNotaCreditoEntregada,
     MarcarNotaCreditoEntregadaInput,
 )
-from src.application.use_cases.payments.inactivar_nc import (
-    InactivarNotaCredito,
-    InactivarNotaCreditoInput,
-)
-from src.application.use_cases.payments.activar_nc import (
-    ActivarNotaCredito,
-    ActivarNotaCreditoInput,
-)
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -336,28 +329,13 @@ def marcar_nc_entregada(
     return MarcarNotaCreditoEntregada(nc_payment_repo)
 
 
-@pytest.fixture
-def inactivar_nc(
-    nc_payment_repo: InMemoryNcPaymentRepository,
-) -> InactivarNotaCredito:
-    return InactivarNotaCredito(nc_payment_repo)
-
-
-@pytest.fixture
-def activar_nc(
-    nc_payment_repo: InMemoryNcPaymentRepository,
-) -> ActivarNotaCredito:
-    return ActivarNotaCredito(nc_payment_repo)
-
-
 def _credit_note(**overrides: Any) -> CreditNote:
     """Create a CreditNote with sensible defaults."""
     defaults: dict[str, Any] = {
         "nc_payment_id": uuid4(),
         "payment_id": uuid4(),
-        "period_id": uuid4(),
+        "period_id": None,
         "delivered": False,
-        "active": True,
     }
     return CreditNote(**{**defaults, **overrides})
 
@@ -926,56 +904,6 @@ def test_marcar_nc_entregada_not_found(
     result = marcar_nc_entregada.execute(
         MarcarNotaCreditoEntregadaInput(nc_payment_id=uuid4())
     )
-    assert result.success is False
-
-
-def test_inactivar_nc_success(
-    inactivar_nc: InactivarNotaCredito,
-    nc_payment_repo: InMemoryNcPaymentRepository,
-) -> None:
-    """Happy path: inactivate an existing NC."""
-    nc = _credit_note(active=True)
-    nc_payment_repo.add(nc)
-
-    result = inactivar_nc.execute(
-        InactivarNotaCreditoInput(nc_payment_id=nc.nc_payment_id)
-    )
-
-    assert result.success is True
-    stored = nc_payment_repo.get_by_id(nc.nc_payment_id)
-    assert stored is not None
-    assert stored.active is False
-
-
-def test_inactivar_nc_not_found(
-    inactivar_nc: InactivarNotaCredito,
-) -> None:
-    """Not found: returns success=False."""
-    result = inactivar_nc.execute(InactivarNotaCreditoInput(nc_payment_id=uuid4()))
-    assert result.success is False
-
-
-def test_activar_nc_success(
-    activar_nc: ActivarNotaCredito,
-    nc_payment_repo: InMemoryNcPaymentRepository,
-) -> None:
-    """Happy path: activate an existing NC."""
-    nc = _credit_note(active=False)
-    nc_payment_repo.add(nc)
-
-    result = activar_nc.execute(ActivarNotaCreditoInput(nc_payment_id=nc.nc_payment_id))
-
-    assert result.success is True
-    stored = nc_payment_repo.get_by_id(nc.nc_payment_id)
-    assert stored is not None
-    assert stored.active is True
-
-
-def test_activar_nc_not_found(
-    activar_nc: ActivarNotaCredito,
-) -> None:
-    """Not found: returns success=False."""
-    result = activar_nc.execute(ActivarNotaCreditoInput(nc_payment_id=uuid4()))
     assert result.success is False
 
 

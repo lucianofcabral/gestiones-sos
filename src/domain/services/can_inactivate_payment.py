@@ -28,6 +28,10 @@ class CanInactivatePaymentService:
         if nc is None:
             return (True, "No credit note associated")
 
+        # No period assigned yet → not linked to a closed period
+        if nc.period_id is None:
+            return (True, "Credit note has no period assigned — not closed")
+
         invoices = self._billing_repo.get_by_period_id(nc.period_id)
         if len(invoices) == 0:
             return (True, "Period has no invoices — not closed")

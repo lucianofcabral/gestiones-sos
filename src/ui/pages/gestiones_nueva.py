@@ -13,6 +13,7 @@ from src.application.use_cases.claims.registrar_grouped_claim import (
 from src.domain.exceptions import GestionAlreadyExistsError
 from src.infrastructure.container import Container
 from src.ui.components.shell import AppShell
+from src.ui.services.audit_helper import with_audit_user
 
 
 def register_gestiones_nueva_page() -> None:
@@ -61,9 +62,9 @@ def register_gestiones_nueva_page() -> None:
                 with ui.card().classes("w-full mb-4 p-4"):
                     ui.label("Datos del Reclamo").classes("text-lg font-bold mb-2")
 
-                    group_select = ui.select(
+                    group_input = ui.input(
                         label="Grupo",
-                        options={str(g.group_id): g.name for g in groups},
+                        autocomplete=[g.name for g in groups],
                     ).classes("w-full")
 
                     claimer_name_input = ui.input(label="Asegurado").classes("w-full")
@@ -76,12 +77,12 @@ def register_gestiones_nueva_page() -> None:
 
                 # ── Type-specific card ───────────────────────────────────────
                 if kind_id in sos_kind_ids:
-                    _render_sos_card(kind_id, group_select, claimer_name_input,
+                    _render_sos_card(kind_id, group_input, claimer_name_input,
                                      policy_number_input, plate_input,
                                      claimed_amount_input, comment_input,
-                                     container)
+                                     groups, container)
                 elif kind_id in grouped_kind_ids:
-                    _render_grouped_card(kind_id, group_select, claimer_name_input,
+                    _render_grouped_card(kind_id, group_input, claimer_name_input,
                                          policy_number_input, plate_input,
                                          claimed_amount_input, comment_input,
                                          groups, container)
@@ -105,17 +106,36 @@ def register_gestiones_nueva_page() -> None:
             _conditional_form()
 
 
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+
+def _resolve_group_id(group_name: str, groups: list, container: Container) -> UUID:
+    """Resolve a group name to a UUID.
+
+    If a group with the given name already exists (case-insensitive), return its ID.
+    Otherwise create a new group and return the new ID.
+    """
+    group_name = group_name.strip()
+    for g in groups:
+        if g.name.lower() == group_name.lower():
+            return g.group_id
+    # No match — create the group
+    group = container.registrar_grupo.execute(group_name)
+    return group.group_id
+
+
 # ── Render helpers ─────────────────────────────────────────────────────────────
 
 
 def _render_sos_card(
     kind_id: str,
-    group_select: ui.select,
+    group_input: ui.input,
     claimer_name_input: ui.input,
     policy_number_input: ui.input,
     plate_input: ui.input,
     claimed_amount_input: ui.number,
     comment_input: ui.textarea,
+    groups: list,
     container: Container,
 ) -> None:
     """Render the SOS-specific data card with submit handler."""
@@ -134,10 +154,13 @@ def _render_sos_card(
         itr_input = ui.number(label="ITR", value=0).classes("w-full")
 
     # ── Submit handler ────────────────────────────────────────────────────
+    @with_audit_user
     def _on_submit() -> None:
+
         # Validate shared fields
-        if not group_select.value:
-            ui.notify("Debe seleccionar un grupo", type="warning")
+        group_name = group_input.value.strip() if group_input.value else ""
+        if not group_name:
+            ui.notify("Debe ingresar un grupo", type="warning")
             return
         if not claimer_name_input.value:
             ui.notify("El nombre del asegurado es requerido", type="warning")
@@ -157,9 +180,15 @@ def _render_sos_card(
             ui.notify("Debe seleccionar un estado", type="warning")
             return
 
+        try:
+            group_id = _resolve_group_id(group_name, groups, container)
+        except Exception as e:
+            ui.notify(f"Error al crear/buscar el grupo: {e}", type="negative")
+            return
+
         input_data = RegistrarGestionSOSInput(
             claim_kind_id=UUID(kind_id),
-            group_id=UUID(group_select.value),
+            group_id=group_id,
             claimer_name=claimer_name_input.value.strip(),
             policy_number=policy_number_input.value.strip(),
             plate=plate_input.value.strip(),
@@ -192,7 +221,7 @@ def _render_sos_card(
 
 def _render_grouped_card(
     kind_id: str,
-    group_select: ui.select,
+    group_input: ui.input,
     claimer_name_input: ui.input,
     policy_number_input: ui.input,
     plate_input: ui.input,
@@ -209,15 +238,19 @@ def _render_grouped_card(
             label="Lote",
             options={str(g.group_id): (g.external_reference or g.name)
                      for g in groups},
+            with_input=True,
         ).classes("w-full")
 
         notes_input = ui.textarea(label="Notas").classes("w-full")
 
     # ── Submit handler ────────────────────────────────────────────────────
+    @with_audit_user
     def _on_submit() -> None:
+
         # Validate shared fields
-        if not group_select.value:
-            ui.notify("Debe seleccionar un grupo", type="warning")
+        group_name = group_input.value.strip() if group_input.value else ""
+        if not group_name:
+            ui.notify("Debe ingresar un grupo", type="warning")
             return
         if not claimer_name_input.value:
             ui.notify("El nombre del asegurado es requerido", type="warning")
@@ -234,9 +267,15 @@ def _render_grouped_card(
             ui.notify("Debe seleccionar un lote", type="warning")
             return
 
+        try:
+            group_id = _resolve_group_id(group_name, groups, container)
+        except Exception as e:
+            ui.notify(f"Error al crear/buscar el grupo: {e}", type="negative")
+            return
+
         input_data = RegistrarGroupedClaimInput(
             claim_kind_id=UUID(kind_id),
-            group_id=UUID(group_select.value),
+            group_id=group_id,
             claimer_name=claimer_name_input.value.strip(),
             policy_number=policy_number_input.value.strip(),
             plate=plate_input.value.strip(),

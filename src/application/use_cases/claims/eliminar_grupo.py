@@ -1,4 +1,4 @@
-"""EliminarGrupo — delete a GroupClaim by group_id with referential integrity check."""
+"""EliminarGrupo — inactivate a GroupClaim by group_id with referential integrity check."""
 
 from uuid import UUID
 
@@ -6,7 +6,7 @@ from src.domain.ports.repositories import ClaimRepoPort, GroupClaimRepoPort
 
 
 class EliminarGrupo:
-    """Delete a GroupClaim by group_id.
+    """Inactivate a GroupClaim by group_id.
 
     Raises ValueError if any Claim references the group_id.
     Returns True on success, False if the group does not exist.
@@ -28,5 +28,4 @@ class EliminarGrupo:
                 f"No se puede eliminar el grupo {group_id}: tiene siniestros asociados"
             )
 
-        self._group_repo.delete(group_id)
-        return True
+        return self._group_repo.inactivate(group_id)

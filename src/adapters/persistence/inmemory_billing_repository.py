@@ -52,3 +52,17 @@ class InMemoryBillingRepository:
 
     def get_by_document(self, document: bytes) -> list[Invoice]:
         return []
+
+    # ── _Activatable ─────────────────────────────────────────────────────────
+
+    def activate(self, id: UUID) -> bool:
+        inv = self.get_by_id(id)
+        if inv:
+            return self.update(id, inv.model_copy(update={"active": True}))
+        return False
+
+    def inactivate(self, id: UUID) -> bool:
+        inv = self.get_by_id(id)
+        if inv:
+            return self.update(id, inv.model_copy(update={"active": False}))
+        return False

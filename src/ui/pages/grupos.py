@@ -6,6 +6,7 @@ from nicegui import ui
 
 from src.infrastructure.container import Container
 from src.ui.components.shell import AppShell
+from src.ui.services.audit_helper import with_audit_user
 
 
 def register_grupos_page() -> None:
@@ -22,6 +23,7 @@ def register_grupos_page() -> None:
                 label="Nombre del grupo", placeholder="Ingrese nombre..."
             )
 
+            @with_audit_user
             async def _add_group() -> None:
                 name = name_input.value.strip()
                 if name:
@@ -60,6 +62,7 @@ def register_grupos_page() -> None:
                             on_click=lambda gid=g.group_id: _delete_group(gid),
                         ).props("flat size=sm")
 
+            @with_audit_user
             def _delete_group(group_id: UUID) -> None:
                 try:
                     container.eliminar_grupo.execute(group_id)

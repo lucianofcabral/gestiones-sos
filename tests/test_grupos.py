@@ -320,6 +320,43 @@ class TestGroupClaimRepo:
         result = group_repo.get_by_document(b"some content")
         assert result == []
 
+    # ── _Activatable ─────────────────────────────────────────────────────────
+
+    def test_activate_sets_active_true(
+        self, group_repo: InMemoryGroupClaimRepository
+    ) -> None:
+        group = _seed_group(group_repo)
+        group_repo.inactivate(group.group_id)
+
+        result = group_repo.activate(group.group_id)
+
+        assert result is True
+        stored = group_repo.get_by_id(group.group_id)
+        assert stored is not None
+        assert stored.active is True
+
+    def test_inactivate_sets_active_false(
+        self, group_repo: InMemoryGroupClaimRepository
+    ) -> None:
+        group = _seed_group(group_repo)
+
+        result = group_repo.inactivate(group.group_id)
+
+        assert result is True
+        stored = group_repo.get_by_id(group.group_id)
+        assert stored is not None
+        assert stored.active is False
+
+    def test_activate_non_existent_returns_false(
+        self, group_repo: InMemoryGroupClaimRepository
+    ) -> None:
+        assert group_repo.activate(uuid4()) is False
+
+    def test_inactivate_non_existent_returns_false(
+        self, group_repo: InMemoryGroupClaimRepository
+    ) -> None:
+        assert group_repo.inactivate(uuid4()) is False
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # RegistrarGrupo Use Case Tests
@@ -420,7 +457,9 @@ class TestEliminarGrupo:
         result = uc.execute(group.group_id)
 
         assert result is True
-        assert group_repo.get_by_id(group.group_id) is None
+        stored = group_repo.get_by_id(group.group_id)
+        assert stored is not None
+        assert stored.active is False
 
     def test_delete_nonexistent_group_returns_false(
         self, group_repo: InMemoryGroupClaimRepository, claim_repo
@@ -442,8 +481,10 @@ class TestEliminarGrupo:
         with pytest.raises(ValueError, match="tiene siniestros asociados"):
             uc.execute(group_id)
 
-        # Group should still exist
-        assert group_repo.get_by_id(group_id) is not None
+        # Group should still exist and be active
+        stored = group_repo.get_by_id(group_id)
+        assert stored is not None
+        assert stored.active is True
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

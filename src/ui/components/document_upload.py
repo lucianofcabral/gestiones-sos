@@ -6,6 +6,7 @@ from uuid import UUID
 from nicegui import app, ui
 
 from src.application.use_cases.documents.subir_documento import SubirDocumentoInput
+from src.ui.services.audit_helper import with_audit_user
 
 
 class DocumentUpload:
@@ -33,6 +34,7 @@ class DocumentUpload:
         with ui.card().classes("w-full p-4"):
             ui.label("Subir Documento").classes("text-lg font-semibold mb-2")
 
+            @with_audit_user
             def handle_upload(e) -> None:
                 content = e.content.read()
                 name = e.name
