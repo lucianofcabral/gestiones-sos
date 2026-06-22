@@ -50,7 +50,7 @@ def _seed_group(
     name: str = "Test Group",
 ) -> GroupClaim:
     gid = group_id or uuid4()
-    group = GroupClaim(group_id=gid, name=name)
+    group = GroupClaim(group_id=gid, name=name, external_reference=f"GRP-{name}")
     repo.add(group)
     return group
 
@@ -104,7 +104,7 @@ class TestGroupClaimRepo:
     # ── BaseRepo: add ──────────────────────────────────────────────────────
 
     def test_add_stores_group(self, group_repo: InMemoryGroupClaimRepository) -> None:
-        group = GroupClaim(name="New Group", group_id=uuid4())
+        group = GroupClaim(name="New Group", group_id=uuid4(), external_reference="GRP-New-Group")
 
         result = group_repo.add(group)
 
@@ -154,7 +154,7 @@ class TestGroupClaimRepo:
     ) -> None:
         group = _seed_group(group_repo, name="Original")
         updated = GroupClaim(
-            group_id=group.group_id, name="Modificado", created_at=group.created_at
+            group_id=group.group_id, name="Modificado", external_reference=group.external_reference, created_at=group.created_at
         )
 
         result = group_repo.update(group.group_id, updated)
@@ -167,7 +167,7 @@ class TestGroupClaimRepo:
     def test_update_returns_false_when_not_found(
         self, group_repo: InMemoryGroupClaimRepository
     ) -> None:
-        g = GroupClaim(name="Ghost")
+        g = GroupClaim(name="Ghost", external_reference="GRP-Ghost")
         result = group_repo.update(g.group_id, g)
         assert result is False
 

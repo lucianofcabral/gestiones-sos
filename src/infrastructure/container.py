@@ -13,8 +13,17 @@ from src.adapters.persistence.sqlalchemy_claim_kind_repository import (
 from src.adapters.persistence.sqlalchemy_claim_repository import (
     SqlAlchemyClaimRepository,
 )
+from src.adapters.persistence.sqlalchemy_sos_claim_repository import (
+    SqlAlchemySosClaimRepository,
+)
 from src.adapters.persistence.sqlalchemy_group_claim_repository import (
     SqlAlchemyGroupClaimRepository,
+)
+from src.adapters.persistence.sqlalchemy_grouped_claim_repository import (
+    SqlAlchemyGroupedClaimRepository,
+)
+from src.adapters.persistence.sqlalchemy_unit_of_work import (
+    SqlAlchemyUnitOfWork,
 )
 from src.adapters.persistence.sqlalchemy_ncpayment_repository import (
     SqlAlchemyNcPaymentRepository,
@@ -47,8 +56,20 @@ from src.application.use_cases.documents.descargar_documento import DescargarDoc
 from src.application.use_cases.documents.obtener_documentos import ObtenerDocumentos
 from src.application.use_cases.claims.actualizar_grupo import ActualizarGrupo
 from src.application.use_cases.claims.eliminar_gestion_sos import EliminarGestionSOS
+from src.application.use_cases.claims.obtener_gestion_por_id import (
+    ObtenerGestionPorId,
+)
+from src.application.use_cases.claims.obtener_gestiones import ObtenerGestiones
 from src.application.use_cases.claims.eliminar_grupo import EliminarGrupo
+from src.application.use_cases.claims.obtener_claim_kinds import ObtenerClaimKinds
 from src.application.use_cases.claims.obtener_grupos import ObtenerGrupos
+from src.application.use_cases.claims.registrar_gestion_sos import RegistrarGestionSOS
+from src.application.use_cases.claims.registrar_grouped_claim import (
+    RegistrarGroupedClaim,
+)
+from src.application.use_cases.claims.eliminar_grouped_claim import (
+    EliminarGroupedClaim,
+)
 from src.application.use_cases.claims.registrar_grupo import RegistrarGrupo
 from src.application.use_cases.payments.activar_nc import ActivarNotaCredito
 from src.application.use_cases.payments.activar_pago import ActivarPago
@@ -68,9 +89,11 @@ from src.domain.ports.repositories import (
     ClaimRepoPort,
     DocumentRepoPort,
     GroupClaimRepoPort,
+    GroupedClaimRepoPort,
     NcPaymentRepoPort,
     PaymentRepoPort,
     PeriodRepoPort,
+    SosClaimRepoPort,
     UserRepoPort,
 )
 from src.infrastructure.storage.filesystem_storage import FilesystemStorageService
@@ -93,6 +116,12 @@ def _build_claim_repo() -> ClaimRepoPort:
     if not os.environ.get("DATABASE_URL"):
         raise RuntimeError("DATABASE_URL environment variable is not set")
     return SqlAlchemyClaimRepository()
+
+
+def _build_sos_claim_repo() -> SosClaimRepoPort:
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return SqlAlchemySosClaimRepository()
 
 
 def _build_period_repo() -> PeriodRepoPort:
@@ -143,6 +172,12 @@ def _build_group_claim_repo() -> GroupClaimRepoPort:
     return SqlAlchemyGroupClaimRepository()
 
 
+def _build_grouped_claim_repo() -> GroupedClaimRepoPort:
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return SqlAlchemyGroupedClaimRepository()
+
+
 def _build_billing_repo():
     if not os.environ.get("DATABASE_URL"):
         raise RuntimeError("DATABASE_URL environment variable is not set")
@@ -166,6 +201,7 @@ class Container:
 
         self._user_repo = _build_user_repo()
         self._claim_repo = _build_claim_repo()
+        self._sos_claim_repo = _build_sos_claim_repo()
         self._period_repo = _build_period_repo()
         self._payment_repo = _build_payment_repo()
         self._nc_payment_repo = _build_nc_payment_repo()
@@ -177,6 +213,7 @@ class Container:
         self._payment_via_repo = _build_payment_via_repo()
         self._claim_kind_repo = _build_claim_kind_repo()
         self._group_claim_repo = _build_group_claim_repo()
+        self._grouped_claim_repo = _build_grouped_claim_repo()
 
         # Document repos and use cases
         self._document_repo = _build_document_repo()
@@ -196,6 +233,11 @@ class Container:
             group_repo=self._group_claim_repo, claim_repo=self._claim_repo
         )
         self._actualizar_grupo = ActualizarGrupo(self._group_claim_repo)
+
+        # Claim registration use cases
+        self._obtener_claim_kinds = ObtenerClaimKinds(self._claim_kind_repo)
+        self._registrar_gestion_sos = RegistrarGestionSOS(SqlAlchemyUnitOfWork())
+        self._registrar_grouped_claim = RegistrarGroupedClaim(SqlAlchemyUnitOfWork())
 
         # Billing use cases
         self._registrar_factura = RegistrarFactura(self._billing_repo)
@@ -230,6 +272,26 @@ class Container:
         self._eliminar_gestion_sos = EliminarGestionSOS(
             claim_repo=self._claim_repo,
             payment_repo=self._payment_repo,
+        )
+        self._eliminar_grouped_claim = EliminarGroupedClaim(
+            claim_repo=self._claim_repo,
+            grouped_claim_repo=self._grouped_claim_repo,
+            payment_repo=self._payment_repo,
+        )
+        self._obtener_gestiones = ObtenerGestiones(
+            claim_repo=self._claim_repo,
+            sos_claim_repo=self._sos_claim_repo,
+            grouped_claim_repo=self._grouped_claim_repo,
+            group_claim_repo=self._group_claim_repo,
+            claim_kind_repo=self._claim_kind_repo,
+        )
+        self._obtener_gestion_por_id = ObtenerGestionPorId(
+            claim_repo=self._claim_repo,
+            sos_claim_repo=self._sos_claim_repo,
+            group_claim_repo=self._group_claim_repo,
+            claim_kind_repo=self._claim_kind_repo,
+            payment_repo=self._payment_repo,
+            grouped_claim_repo=self._grouped_claim_repo,
         )
         self._registrar_pago = RegistrarPago(
             payment_repo=self._payment_repo,
@@ -277,6 +339,10 @@ class Container:
     @property
     def claim_repo(self) -> ClaimRepoPort:
         return self._claim_repo
+
+    @property
+    def sos_claim_repo(self) -> SosClaimRepoPort:
+        return self._sos_claim_repo
 
     @property
     def period_repo(self) -> PeriodRepoPort:
@@ -355,6 +421,26 @@ class Container:
         return self._obtener_grupos
 
     @property
+    def obtener_claim_kinds(self) -> ObtenerClaimKinds:
+        return self._obtener_claim_kinds
+
+    @property
+    def registrar_gestion_sos(self) -> RegistrarGestionSOS:
+        return self._registrar_gestion_sos
+
+    @property
+    def registrar_grouped_claim(self) -> RegistrarGroupedClaim:
+        return self._registrar_grouped_claim
+
+    @property
+    def eliminar_grouped_claim(self) -> EliminarGroupedClaim:
+        return self._eliminar_grouped_claim
+
+    @property
+    def grouped_claim_repo(self) -> GroupedClaimRepoPort:
+        return self._grouped_claim_repo
+
+    @property
     def eliminar_grupo(self) -> EliminarGrupo:
         return self._eliminar_grupo
 
@@ -397,6 +483,14 @@ class Container:
     @property
     def eliminar_gestion_sos(self) -> EliminarGestionSOS:
         return self._eliminar_gestion_sos
+
+    @property
+    def obtener_gestiones(self) -> ObtenerGestiones:
+        return self._obtener_gestiones
+
+    @property
+    def obtener_gestion_por_id(self) -> ObtenerGestionPorId:
+        return self._obtener_gestion_por_id
 
     @property
     def registrar_pago(self) -> RegistrarPago:
