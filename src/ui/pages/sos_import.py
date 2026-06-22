@@ -21,12 +21,12 @@ def register_sos_import_page() -> None:
 
             # ── Upload handler ──────────────────────────────────────────────
 
-            def handle_upload(e) -> None:
+            async def handle_upload(e) -> None:
                 nonlocal parsed_rows
                 result_area.clear()
 
                 # Validate extension
-                name = e.name or ""
+                name = e.file.name or ""
                 if not name.lower().endswith(".xlsx"):
                     ui.notify(
                         "Formato no soportado. Seleccione un archivo .xlsx.",
@@ -35,7 +35,7 @@ def register_sos_import_page() -> None:
                     return
 
                 # Parse
-                content = e.content.read()
+                content = await e.file.read()
                 try:
                     parsed_rows = parse_excel(content)
                 except ValueError as exc:
