@@ -7,9 +7,13 @@ from nicegui import ui
 from src.application.use_cases.claims.obtener_gestion_por_id import (
     ObtenerGestionPorIdInput,
 )
+from src.application.use_cases.payments.registrar_pago import (
+    RegistrarPagoInput,
+)
 from src.domain.exceptions import ClaimNotFoundError
 from src.infrastructure.container import Container
 from src.ui.components.shell import AppShell
+from src.ui.services.audit_helper import with_audit_user
 
 
 def register_gestiones_detalle_page() -> None:
@@ -149,8 +153,17 @@ def _render_grouped_section(detalle: any) -> None:
 
 
 def _render_payments_section(detalle: any) -> None:
-    """Section 3 — Payments table (all types)."""
-    ui.label("Pagos").classes("text-lg font-bold mt-6 mb-2")
+    """Section 3 — Payments table (all types) + inline creation."""
+    container = Container.get_instance()
+
+    with ui.row().classes("items-center justify-between mt-6 mb-2"):
+        ui.label("Pagos").classes("text-lg font-bold")
+
+        ui.button(
+            "Nuevo Pago",
+            icon="add",
+            on_click=lambda: _nuevo_pago_dialog(container, detalle.claim_id),
+        ).props("flat color=white size=sm")
 
     if not detalle.payments:
         ui.label("No hay pagos registrados para esta gestión.").classes(
@@ -175,6 +188,88 @@ def _render_payments_section(detalle: any) -> None:
                 "text-sm w-28 text-gray-400"
             )
             ui.label("Sí" if p.active else "No").classes("text-sm w-16")
+
+
+def _nuevo_pago_dialog(container: Container, claim_id: UUID) -> None:
+    """Open the create-payment dialog pre-filled with *claim_id*."""
+    agent_options = {str(a.agent_id): a.name for a in container.agent_repo.get_all()}
+    via_options = {str(v.payment_via_id): v.name for v in container.payment_via_repo.get_all()}
+    nc_via = container.payment_via_repo.get_nc()
+    nc_via_id = str(nc_via.payment_via_id) if nc_via else None
+    period_options = {str(p.period_id): p.period_name
+                      for p in container.listar_periodos.execute().periods}
+
+    with ui.dialog() as dlg, ui.card():
+        ui.label("Nuevo Pago").classes("text-lg font-bold mb-2")
+
+        payer_select = ui.select(
+            label="Pagador", options=agent_options, with_input=True,
+        ).classes("w-full")
+        payee_select = ui.select(
+            label="Beneficiario", options=agent_options, with_input=True,
+        ).classes("w-full")
+        via_select = ui.select(
+            label="Medio de Pago", options=via_options, with_input=True,
+        ).classes("w-full")
+        amount_input = ui.number(label="Monto", precision=2)
+
+        period_input = ui.select(
+            label="Período", options=period_options, with_input=True,
+        ).classes("w-full")
+        period_input.set_visibility(False)
+
+        def _on_via_change() -> None:
+            period_input.set_visibility(via_select.value == nc_via_id)
+        via_select.on("update:model-value", _on_via_change)
+
+        with ui.row().classes("gap-2 justify-end mt-2"):
+            ui.button("Cancelar", on_click=dlg.close).props("flat")
+
+            @with_audit_user
+            async def _save() -> None:
+                missing = []
+                payer_val = payer_select.value
+                payee_val = payee_select.value
+                via_val = via_select.value
+                amount_val = amount_input.value
+                period_val = period_input.value
+
+                if not payer_val:
+                    missing.append("Pagador")
+                if not payee_val:
+                    missing.append("Beneficiario")
+                if not via_val:
+                    missing.append("Medio de Pago")
+                if not amount_val or float(amount_val) <= 0:
+                    missing.append("Monto")
+                if via_val == nc_via_id and not period_val:
+                    missing.append("Período (NC)")
+
+                if missing:
+                    ui.notify("Campos requeridos: " + ", ".join(missing), type="warning")
+                    return
+
+                try:
+                    inp = RegistrarPagoInput(
+                        claim_id=claim_id,
+                        payer_id=UUID(payer_val),
+                        payee_id=UUID(payee_val),
+                        payment_via_id=UUID(via_val),
+                        amount=float(amount_val),
+                        period_id=UUID(period_val) if period_val else None,
+                    )
+                    container.registrar_pago.execute(inp)
+                    ui.notify("Pago registrado", type="positive")
+                    dlg.close()
+                    ui.navigate.reload()
+                except ValueError as e:
+                    ui.notify(str(e), type="negative")
+                except Exception as e:
+                    ui.notify(f"Error al registrar pago: {e}", type="negative")
+
+            ui.button("Guardar", on_click=_save)
+
+    dlg.open()
 
 
 def _field(label: str, value: str) -> None:

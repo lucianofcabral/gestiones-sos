@@ -11,9 +11,18 @@ class RegistrarGrupo:
     def __init__(self, repo: GroupClaimRepoPort) -> None:
         self._repo = repo
 
-    def execute(self, name: str, external_reference: str | None = None) -> GroupClaim:
+    def execute(
+        self,
+        name: str,
+        external_reference: str | None = None,
+        description: str | None = None,
+    ) -> GroupClaim:
         existing = self._repo.get_by_group_name(name)
         if existing is not None:
             return existing
-        group = GroupClaim(name=name, external_reference=external_reference or name)
+        group = GroupClaim(
+            name=name,
+            external_reference=external_reference or name,
+            description=description,
+        )
         return self._repo.add(group)
