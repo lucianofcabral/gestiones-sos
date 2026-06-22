@@ -10,6 +10,8 @@ scripts/
 *.egg-info
 *.accdb
 *.ipynb
+*.env
+*.xls*
 
 # Virtual environments
 .venv

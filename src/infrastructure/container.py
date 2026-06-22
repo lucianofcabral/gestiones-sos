@@ -72,6 +72,7 @@ from src.application.use_cases.claims.registrar_grouped_claim import (
 from src.application.use_cases.claims.eliminar_grouped_claim import (
     EliminarGroupedClaim,
 )
+from src.application.use_cases.claims.importar_gestiones_sos import ImportarGestionSOS
 from src.application.use_cases.claims.registrar_grupo import RegistrarGrupo
 from src.application.use_cases.payments.activar_pago import ActivarPago
 from src.application.use_cases.payments.actualizar_pago import ActualizarPago
@@ -319,6 +320,11 @@ class Container:
         )
 
         # Use cases
+        self._importar_gestiones_sos = ImportarGestionSOS(
+            uow_cls=SqlAlchemyUnitOfWork,
+            claim_kind_repo=self._claim_kind_repo,
+            group_claim_repo=self._group_claim_repo,
+        )
         self._eliminar_gestion_sos = EliminarGestionSOS(
             claim_repo=self._claim_repo,
             payment_repo=self._payment_repo,
@@ -525,6 +531,10 @@ class Container:
     @property
     def eliminar_periodo(self) -> EliminarPeriodo:
         return self._eliminar_periodo
+
+    @property
+    def importar_gestiones_sos(self) -> ImportarGestionSOS:
+        return self._importar_gestiones_sos
 
     @property
     def eliminar_gestion_sos(self) -> EliminarGestionSOS:

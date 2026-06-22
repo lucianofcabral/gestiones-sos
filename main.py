@@ -8,6 +8,7 @@ load_dotenv()
 from src.ui.pages.gestiones import register_gestiones_page
 from src.ui.pages.gestiones_detalle import register_gestiones_detalle_page
 from src.ui.pages.gestiones_nueva import register_gestiones_nueva_page
+from src.ui.pages.sos_import import register_sos_import_page
 from src.ui.pages.home import register_home_page
 from src.ui.pages.login import register_login_page
 from src.ui.pages.pagos import register_pagos_page
@@ -34,6 +35,7 @@ register_register_page()
 register_home_page()
 register_gestiones_page()
 register_gestiones_nueva_page()
+register_sos_import_page()
 register_gestiones_detalle_page()
 register_pagos_page()
 register_periodos_page()
