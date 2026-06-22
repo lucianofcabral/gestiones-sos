@@ -75,10 +75,14 @@ class AppShell:
     def _nav_items() -> list[tuple[str, str, str]]:
         return [
             ("Inicio", "/", "home"),
+            ("Documentos", "/documentos", "description"),
             ("Gestiones", "/gestiones", "assignment"),
             ("Nueva Gestión", "/gestiones/nueva", "add_circle"),
             ("Pagos", "/pagos", "payments"),
+            ("Facturación", "/facturas", "receipt"),
             ("Períodos", "/periodos", "calendar_month"),
+            ("Grupos", "/grupos", "group"),
+            ("Catálogos", "/catalogos", "list"),
             ("Reportes", "/reportes", "bar_chart"),
         ]
 

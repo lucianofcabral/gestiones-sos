@@ -44,6 +44,7 @@ periods = sa.Table(
     sa.Column("year", sa.Integer, nullable=False),
     sa.Column("month", sa.Integer, nullable=False),
     sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+    sa.UniqueConstraint("year", "month", name="uq_periods_year_month"),
 )
 
 sos_claims = sa.Table(
@@ -89,4 +90,76 @@ nc_payments = sa.Table(
     sa.Column(
         "created_date", sa.DateTime, nullable=False, server_default=sa.func.now()
     ),
+)
+
+agents = sa.Table(
+    "agents",
+    metadata,
+    sa.Column("agent_id", sa.UUID, primary_key=True),
+    sa.Column("name", sa.String(100), nullable=False, unique=True),
+    sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)
+
+payment_vias = sa.Table(
+    "payment_vias",
+    metadata,
+    sa.Column("payment_via_id", sa.UUID, primary_key=True),
+    sa.Column("name", sa.String(100), nullable=False, unique=True),
+    sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)
+
+claim_kinds = sa.Table(
+    "claim_kinds",
+    metadata,
+    sa.Column("claim_kind_id", sa.UUID, primary_key=True),
+    sa.Column("name", sa.String(100), nullable=False, unique=True),
+    sa.Column("active", sa.Boolean, nullable=False, server_default="true"),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)
+
+documents = sa.Table(
+    "documents",
+    metadata,
+    sa.Column("document_id", sa.UUID, primary_key=True),
+    sa.Column("hash", sa.String(64), nullable=False, unique=True),
+    sa.Column("type", sa.String(100), nullable=False),
+    sa.Column("name", sa.String(255), nullable=False),
+    sa.Column("size", sa.Integer, nullable=False),
+    sa.Column("mime", sa.String(100), nullable=False, server_default=""),
+    sa.Column("description", sa.String(500), nullable=False, server_default=""),
+    sa.Column("uploaded_by", sa.UUID, nullable=True),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)
+
+document_entities = sa.Table(
+    "document_entities",
+    metadata,
+    sa.Column("document_id", sa.UUID, nullable=False),
+    sa.Column("entity_type", sa.String(50), nullable=False),
+    sa.Column("entity_id", sa.UUID, nullable=False),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+    sa.UniqueConstraint(
+        "document_id", "entity_type", "entity_id", name="uq_doc_entity"
+    ),
+)
+
+group_claims = sa.Table(
+    "group_claims",
+    metadata,
+    sa.Column("group_id", sa.UUID, primary_key=True),
+    sa.Column("name", sa.String(100), nullable=False, unique=True),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
+)
+
+invoices = sa.Table(
+    "invoices",
+    metadata,
+    sa.Column("invoice_id", sa.UUID, primary_key=True),
+    sa.Column("invoice_number", sa.Text, nullable=False),
+    sa.Column("period_id", sa.UUID, sa.ForeignKey("periods.period_id"), nullable=False),
+    sa.Column("emited_date", sa.DateTime, nullable=False),
+    sa.Column("amount", sa.Numeric(12, 2), nullable=False),
+    sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
 )

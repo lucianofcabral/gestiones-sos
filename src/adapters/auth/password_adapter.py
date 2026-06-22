@@ -1,16 +1,14 @@
-from passlib.context import CryptContext
+import bcrypt
 
 from src.domain.ports.auth import PasswordPort
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class PasswordAdapter:
     def verify_password(self, plain: str, hashed: str) -> bool:
-        return pwd_context.verify(plain, hashed)
+        return bcrypt.checkpw(plain.encode(), hashed.encode())
 
     def hash_password(self, plain: str) -> str:
-        return pwd_context.hash(plain)
+        return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
 
 # Structural subtype check

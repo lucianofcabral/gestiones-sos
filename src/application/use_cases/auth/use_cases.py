@@ -4,6 +4,12 @@ from src.application.use_cases.auth.login import LoginInput, LoginOutput
 from src.application.use_cases.auth.logout import LogoutInput, LogoutOutput
 from src.application.use_cases.auth.me import MeOutput
 from src.application.use_cases.auth.register import RegisterInput, RegisterOutput
+from src.domain.exceptions import (
+    EmailAlreadyRegisteredError,
+    InvalidCredentialsError,
+    UserInactiveError,
+    UserNotFoundError,
+)
 from src.domain.ports.auth import PasswordPort, TokenPort
 from src.domain.ports.repositories import UserRepoPort
 
@@ -22,15 +28,15 @@ class Login:
     def execute(self, input_data: LoginInput) -> LoginOutput:
         user = self._user_repo.get_by_email(input_data.email)
         if user is None:
-            raise ValueError("Invalid credentials")
+            raise InvalidCredentialsError("Invalid credentials")
 
         if not self._password_port.verify_password(
             input_data.password, user.password_hash
         ):
-            raise ValueError("Invalid credentials")
+            raise InvalidCredentialsError("Invalid credentials")
 
         if not user.active:
-            raise ValueError("User is inactive")
+            raise UserInactiveError("User is inactive")
 
         token = self._token_port.create_token(user.user_id)
         return LoginOutput(
@@ -49,7 +55,7 @@ class Register:
     def execute(self, input_data: RegisterInput) -> RegisterOutput:
         existing = self._user_repo.get_by_email(input_data.email)
         if existing is not None:
-            raise ValueError("Email already registered")
+            raise EmailAlreadyRegisteredError("Email already registered")
 
         password_hash = self._password_port.hash_password(input_data.password)
 
@@ -73,7 +79,7 @@ class Me:
     def execute(self, user_id: UUID) -> MeOutput:
         user = self._user_repo.get_by_id(user_id)
         if user is None:
-            raise ValueError("User not found")
+            raise UserNotFoundError("User not found")
         return MeOutput(
             user_id=str(user.user_id),
             user_name=user.user_name,

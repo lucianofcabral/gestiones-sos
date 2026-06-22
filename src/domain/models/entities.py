@@ -34,11 +34,13 @@ class User(BaseModel):
 
 class Document(BaseModel):
     document_id: UUID = Field(default_factory=uuid4)
-    document_hash: str = Field(min_length=1, max_length=255)
+    document_hash: str = Field(min_length=1, max_length=64)
     type: str = Field(min_length=1, max_length=100)
     name: str = Field(min_length=1, max_length=255)
     size: int = Field(0, ge=0)
     mime: str = Field("", max_length=100)
+    description: str = Field("", max_length=500)
+    uploaded_by: UUID | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -81,7 +83,7 @@ class Period(BaseModel):
 
 class Invoice(BaseModel):
     invoice_id: UUID = Field(default_factory=uuid4)
-    invoice_number: int = Field(0, ge=0)
+    invoice_number: str = Field(min_length=1, max_length=50)
     period_id: UUID = Field(default_factory=uuid4)
     emited_date: datetime
     amount: float = Field(gt=0)

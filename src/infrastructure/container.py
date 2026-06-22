@@ -1,10 +1,20 @@
 import os
-from typing import Any
-from uuid import UUID
 
+from src.adapters.persistence.sqlalchemy_document_repository import (
+    SqlAlchemyDocumentRepository,
+)
 from src.adapters.auth import JwtService, PasswordAdapter
+from src.adapters.persistence.sqlalchemy_agent_repository import (
+    SqlAlchemyAgentRepository,
+)
+from src.adapters.persistence.sqlalchemy_claim_kind_repository import (
+    SqlAlchemyClaimKindRepository,
+)
 from src.adapters.persistence.sqlalchemy_claim_repository import (
     SqlAlchemyClaimRepository,
+)
+from src.adapters.persistence.sqlalchemy_group_claim_repository import (
+    SqlAlchemyGroupClaimRepository,
 )
 from src.adapters.persistence.sqlalchemy_ncpayment_repository import (
     SqlAlchemyNcPaymentRepository,
@@ -12,11 +22,34 @@ from src.adapters.persistence.sqlalchemy_ncpayment_repository import (
 from src.adapters.persistence.sqlalchemy_payment_repository import (
     SqlAlchemyPaymentRepository,
 )
+from src.adapters.persistence.sqlalchemy_payment_via_repository import (
+    SqlAlchemyPaymentViaRepository,
+)
 from src.adapters.persistence.sqlalchemy_period_repository import (
     SqlAlchemyPeriodRepository,
 )
 from src.adapters.persistence.sqlalchemy_user_repository import SqlAlchemyUserRepository
+from src.adapters.persistence.sqlalchemy_billing_repository import (
+    SqlAlchemyBillingRepository,
+)
+from src.application.use_cases.billing.eliminar_factura import EliminarFactura
+from src.application.use_cases.billing.obtener_factura import ObtenerFactura
+from src.application.use_cases.billing.obtener_facturas import ObtenerFacturas
+from src.application.use_cases.billing.obtener_total_facturacion import (
+    ObtenerTotalFacturacion,
+)
+from src.application.use_cases.billing.registrar_factura import RegistrarFactura
+from src.application.use_cases.periods.crear_periodo import CrearPeriodo
+from src.application.use_cases.periods.eliminar_periodo import EliminarPeriodo
+from src.application.use_cases.periods.listar_periodos import ListarPeriodos
+from src.application.use_cases.documents.subir_documento import SubirDocumento
+from src.application.use_cases.documents.descargar_documento import DescargarDocumento
+from src.application.use_cases.documents.obtener_documentos import ObtenerDocumentos
+from src.application.use_cases.claims.actualizar_grupo import ActualizarGrupo
 from src.application.use_cases.claims.eliminar_gestion_sos import EliminarGestionSOS
+from src.application.use_cases.claims.eliminar_grupo import EliminarGrupo
+from src.application.use_cases.claims.obtener_grupos import ObtenerGrupos
+from src.application.use_cases.claims.registrar_grupo import RegistrarGrupo
 from src.application.use_cases.payments.activar_nc import ActivarNotaCredito
 from src.application.use_cases.payments.activar_pago import ActivarPago
 from src.application.use_cases.payments.actualizar_pago import ActualizarPago
@@ -29,15 +62,18 @@ from src.application.use_cases.payments.obtener_ncs import ObtenerNotasCredito
 from src.application.use_cases.payments.obtener_pagos import ObtenerPagos
 from src.application.use_cases.payments.registrar_nc import RegistrarNotaCredito
 from src.application.use_cases.payments.registrar_pago import RegistrarPago
-from src.domain.models.entities import Agent, Invoice, PaymentVia
 from src.domain.ports.repositories import (
     BillingRepoPort,
+    ClaimKindRepoPort,
     ClaimRepoPort,
+    DocumentRepoPort,
+    GroupClaimRepoPort,
     NcPaymentRepoPort,
     PaymentRepoPort,
     PeriodRepoPort,
     UserRepoPort,
 )
+from src.infrastructure.storage.filesystem_storage import FilesystemStorageService
 from src.domain.services.can_activate_payment import CanActivatePaymentService
 from src.domain.services.can_inactivate_payment import CanInactivatePaymentService
 from src.domain.services.payment_update_rules import PaymentUpdateRules
@@ -77,136 +113,44 @@ def _build_nc_payment_repo() -> NcPaymentRepoPort:
     return SqlAlchemyNcPaymentRepository()
 
 
-# ── Stub repos for dependencies without SQLAlchemy implementations ────────────
+def _build_agent_repo():
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return SqlAlchemyAgentRepository()
 
 
-class _StubBillingRepository:
-    """Stub BillingRepoPort — always returns no invoices.
-
-    Used because no SQLAlchemyBillingRepository exists yet.
-    """
-
-    def add(self, model: Invoice) -> Invoice:
-        return model
-
-    def get_by_id(self, id: UUID) -> Invoice | None:
-        return None
-
-    def get_all(self) -> list[Invoice]:
-        return []
-
-    def delete(self, id: UUID) -> None:
-        pass
-
-    def update(self, id: UUID, model: Invoice) -> bool:
-        return False
-
-    def exists(self, data: dict[str, Any]) -> bool:
-        return False
-
-    def get_by_ids(self, ids: list[UUID]) -> list[Invoice]:
-        return []
-
-    def get_by_document_id(self, document_id: UUID) -> list[Invoice]:
-        return []
-
-    def get_by_document(self, document: bytes) -> list[Invoice]:
-        return []
-
-    def get_by_period_id(self, period_id: UUID) -> list[Invoice]:
-        return []
+def _build_payment_via_repo():
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return SqlAlchemyPaymentViaRepository()
 
 
-class _StubAgentRepository:
-    """Stub AgentRepoPort — returns None for all lookups.
-
-    Used because no SqlAlchemyAgentRepository exists yet.
-    """
-
-    def add(self, model: Agent) -> Agent:
-        return model
-
-    def get_by_id(self, id: UUID) -> Agent | None:
-        return None
-
-    def get_all(self) -> list[Agent]:
-        return []
-
-    def delete(self, id: UUID) -> None:
-        pass
-
-    def update(self, id: UUID, model: Agent) -> bool:
-        return False
-
-    def exists(self, data: dict[str, Any]) -> bool:
-        return False
-
-    def get_by_ids(self, ids: list[UUID]) -> list[Agent]:
-        return []
-
-    def activate(self, id: UUID) -> bool:
-        return False
-
-    def inactivate(self, id: UUID) -> bool:
-        return False
-
-    def get_by_name(self, name: str) -> Agent | None:
-        return None
-
-    def get_sm(self) -> Agent | None:
-        return None
-
-    def get_prestador(self) -> Agent | None:
-        return None
-
-    def get_sos(self) -> Agent | None:
-        return None
-
-    def get_asegurado(self) -> Agent | None:
-        return None
+def _build_claim_kind_repo():
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return SqlAlchemyClaimKindRepository()
 
 
-class _StubPaymentViaRepository:
-    """Stub PaymentViaRepoPort — returns None for all lookups.
+def _build_document_repo() -> DocumentRepoPort:
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return SqlAlchemyDocumentRepository()
 
-    Used because no SqlAlchemyPaymentViaRepository exists yet.
-    """
 
-    def add(self, model: PaymentVia) -> PaymentVia:
-        return model
+def _build_group_claim_repo() -> GroupClaimRepoPort:
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return SqlAlchemyGroupClaimRepository()
 
-    def get_by_id(self, id: UUID) -> PaymentVia | None:
-        return None
 
-    def get_all(self) -> list[PaymentVia]:
-        return []
+def _build_billing_repo():
+    if not os.environ.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL environment variable is not set")
+    return SqlAlchemyBillingRepository()
 
-    def delete(self, id: UUID) -> None:
-        pass
 
-    def update(self, id: UUID, model: PaymentVia) -> bool:
-        return False
-
-    def exists(self, data: dict[str, Any]) -> bool:
-        return False
-
-    def get_by_ids(self, ids: list[UUID]) -> list[PaymentVia]:
-        return []
-
-    def activate(self, id: UUID) -> bool:
-        return False
-
-    def inactivate(self, id: UUID) -> bool:
-        return False
-
-    def get_by_name(self, name: str) -> PaymentVia | None:
-        return None
-
-    def get_transferencia(self) -> PaymentVia | None:
-        return None
-
-    def get_nc(self) -> PaymentVia | None:
-        return None
+def _build_storage_service() -> FilesystemStorageService:
+    return FilesystemStorageService()
 
 
 # ── Container ─────────────────────────────────────────────────────────────────
@@ -228,10 +172,46 @@ class Container:
         self._password_adapter = PasswordAdapter()
         self._jwt_service = JwtService(secret=jwt_secret)
 
-        # Stub repos for unimplemented adapters
-        self._billing_repo: BillingRepoPort = _StubBillingRepository()
-        self._agent_repo = _StubAgentRepository()
-        self._payment_via_repo = _StubPaymentViaRepository()
+        self._billing_repo = _build_billing_repo()
+        self._agent_repo = _build_agent_repo()
+        self._payment_via_repo = _build_payment_via_repo()
+        self._claim_kind_repo = _build_claim_kind_repo()
+        self._group_claim_repo = _build_group_claim_repo()
+
+        # Document repos and use cases
+        self._document_repo = _build_document_repo()
+        self._storage_service = _build_storage_service()
+        self._subir_documento = SubirDocumento(
+            self._document_repo, self._storage_service
+        )
+        self._descargar_documento = DescargarDocumento(
+            self._document_repo, self._storage_service
+        )
+        self._obtener_documentos = ObtenerDocumentos(self._document_repo)
+
+        # GroupClaim use cases
+        self._registrar_grupo = RegistrarGrupo(self._group_claim_repo)
+        self._obtener_grupos = ObtenerGrupos(self._group_claim_repo)
+        self._eliminar_grupo = EliminarGrupo(
+            group_repo=self._group_claim_repo, claim_repo=self._claim_repo
+        )
+        self._actualizar_grupo = ActualizarGrupo(self._group_claim_repo)
+
+        # Billing use cases
+        self._registrar_factura = RegistrarFactura(self._billing_repo)
+        self._obtener_facturas = ObtenerFacturas(self._billing_repo)
+        self._obtener_factura = ObtenerFactura(self._billing_repo)
+        self._eliminar_factura = EliminarFactura(
+            self._billing_repo, self._document_repo
+        )
+        self._obtener_total_facturacion = ObtenerTotalFacturacion(self._period_repo)
+
+        # Period use cases
+        self._crear_periodo = CrearPeriodo(self._period_repo)
+        self._listar_periodos = ListarPeriodos(self._period_repo)
+        self._eliminar_periodo = EliminarPeriodo(
+            self._period_repo, self._billing_repo, self._nc_payment_repo
+        )
 
         # Domain services
         self._can_inactivate_svc = CanInactivatePaymentService(
@@ -315,6 +295,38 @@ class Container:
         return self._billing_repo
 
     @property
+    def agent_repo(self):
+        return self._agent_repo
+
+    @property
+    def payment_via_repo(self):
+        return self._payment_via_repo
+
+    @property
+    def claim_kind_repo(self) -> ClaimKindRepoPort:
+        return self._claim_kind_repo
+
+    @property
+    def group_claim_repo(self) -> GroupClaimRepoPort:
+        return self._group_claim_repo
+
+    @property
+    def document_repo(self) -> DocumentRepoPort:
+        return self._document_repo
+
+    @property
+    def subir_documento(self) -> SubirDocumento:
+        return self._subir_documento
+
+    @property
+    def descargar_documento(self) -> DescargarDocumento:
+        return self._descargar_documento
+
+    @property
+    def obtener_documentos(self) -> ObtenerDocumentos:
+        return self._obtener_documentos
+
+    @property
     def password_adapter(self) -> PasswordAdapter:
         return self._password_adapter
 
@@ -333,6 +345,54 @@ class Container:
     @property
     def can_activate_svc(self) -> CanActivatePaymentService:
         return self._can_activate_svc
+
+    @property
+    def registrar_grupo(self) -> RegistrarGrupo:
+        return self._registrar_grupo
+
+    @property
+    def obtener_grupos(self) -> ObtenerGrupos:
+        return self._obtener_grupos
+
+    @property
+    def eliminar_grupo(self) -> EliminarGrupo:
+        return self._eliminar_grupo
+
+    @property
+    def actualizar_grupo(self) -> ActualizarGrupo:
+        return self._actualizar_grupo
+
+    @property
+    def registrar_factura(self) -> RegistrarFactura:
+        return self._registrar_factura
+
+    @property
+    def obtener_facturas(self) -> ObtenerFacturas:
+        return self._obtener_facturas
+
+    @property
+    def obtener_factura(self) -> ObtenerFactura:
+        return self._obtener_factura
+
+    @property
+    def eliminar_factura(self) -> EliminarFactura:
+        return self._eliminar_factura
+
+    @property
+    def obtener_total_facturacion(self) -> ObtenerTotalFacturacion:
+        return self._obtener_total_facturacion
+
+    @property
+    def crear_periodo(self) -> CrearPeriodo:
+        return self._crear_periodo
+
+    @property
+    def listar_periodos(self) -> ListarPeriodos:
+        return self._listar_periodos
+
+    @property
+    def eliminar_periodo(self) -> EliminarPeriodo:
+        return self._eliminar_periodo
 
     @property
     def eliminar_gestion_sos(self) -> EliminarGestionSOS:

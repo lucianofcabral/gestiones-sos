@@ -6,6 +6,7 @@ import sqlalchemy as sa
 
 from src.domain.models.entities import Period
 from src.infrastructure.database.connection import get_connection
+from src.infrastructure.database.tables import invoices as inv_tbl
 from src.infrastructure.database.tables import periods
 
 
@@ -119,6 +120,12 @@ class SqlAlchemyPeriodRepository:
         return [self._row_to_period(r) for r in rows]
 
     def get_total_billing_by_year_month(self, year: int, month: int) -> float:
-        raise NotImplementedError(
-            "get_total_billing_by_year_month requiere el módulo Billing"
-        )
+        with self._get_conn() as conn:
+            row = conn.execute(
+                sa.select(sa.func.coalesce(sa.func.sum(inv_tbl.c.amount), 0))
+                .select_from(
+                    periods.join(inv_tbl, periods.c.period_id == inv_tbl.c.period_id)
+                )
+                .where(sa.and_(periods.c.year == year, periods.c.month == month))
+            ).scalar()
+        return float(row)

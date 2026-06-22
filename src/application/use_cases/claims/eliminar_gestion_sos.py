@@ -2,6 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from src.domain.exceptions import ClaimHasActivePaymentsError, ClaimNotFoundError
 from src.domain.ports.repositories import ClaimRepoPort, PaymentRepoPort
 
 
@@ -40,13 +41,13 @@ class EliminarGestionSOS:
     def execute(self, input_data: EliminarGestionSOSInput) -> EliminarGestionSOSOutput:
         claim = self._claim_repo.get_by_id(input_data.claim_id)
         if claim is None:
-            raise ValueError("Claim not found")
+            raise ClaimNotFoundError("Claim not found")
 
         # Payment guard: check for active payments before deleting
         if self._payment_repo is not None:
             payments = self._payment_repo.get_by_claim_id(input_data.claim_id)
             if any(p.active for p in payments):
-                raise ValueError("Claim has active payments")
+                raise ClaimHasActivePaymentsError("Claim has active payments")
 
         self._claim_repo.inactivate(input_data.claim_id)
 

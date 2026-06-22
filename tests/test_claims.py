@@ -16,6 +16,7 @@ from src.application.use_cases.claims.registrar_gestion_sos import (
     RegistrarGestionSOS,
     RegistrarGestionSOSInput,
 )
+from src.domain.exceptions import ClaimNotFoundError, GestionAlreadyExistsError
 from src.domain.models.entities import Claim, SosClaim
 from src.domain.ports.uow import UnitOfWork
 
@@ -76,7 +77,7 @@ def test_delete_nonexistent_claim_raises_value_error(
     use_case = EliminarGestionSOS(claim_repo)
     fake_id = uuid4()
 
-    with pytest.raises(ValueError, match="not found"):
+    with pytest.raises(ClaimNotFoundError, match="not found"):
         use_case.execute(EliminarGestionSOSInput(claim_id=fake_id))
 
 
@@ -213,7 +214,7 @@ def test_registrar_duplicate_gestion_raises(
 
     input_data = _make_registrar_input(overrides={"gestion": 999})
 
-    with pytest.raises(ValueError, match="Ya existe una gestión"):
+    with pytest.raises(GestionAlreadyExistsError, match="Ya existe una gestión"):
         use_case.execute(input_data)
 
 
