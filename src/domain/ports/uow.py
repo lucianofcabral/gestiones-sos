@@ -1,11 +1,16 @@
 from abc import ABC, abstractmethod
 
-from src.domain.ports.repositories import ClaimRepoPort, SosClaimRepoPort
+from src.domain.ports.repositories import (
+    ClaimRepoPort,
+    GroupedClaimRepoPort,
+    SosClaimRepoPort,
+)
 
 
 class UnitOfWork(ABC):
     claims: ClaimRepoPort
     sos_claims: SosClaimRepoPort
+    grouped_claims: GroupedClaimRepoPort
 
     @abstractmethod
     def commit(self) -> None: ...

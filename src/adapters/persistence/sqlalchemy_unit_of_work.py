@@ -1,6 +1,9 @@
 from src.adapters.persistence.sqlalchemy_claim_repository import (
     SqlAlchemyClaimRepository,
 )
+from src.adapters.persistence.sqlalchemy_grouped_claim_repository import (
+    SqlAlchemyGroupedClaimRepository,
+)
 from src.adapters.persistence.sqlalchemy_sos_claim_repository import (
     SqlAlchemySosClaimRepository,
 )
@@ -15,6 +18,7 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         self._conn = get_engine().connect()
         self.claims = SqlAlchemyClaimRepository(conn=self._conn)
         self.sos_claims = SqlAlchemySosClaimRepository(conn=self._conn)
+        self.grouped_claims = SqlAlchemyGroupedClaimRepository(conn=self._conn)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

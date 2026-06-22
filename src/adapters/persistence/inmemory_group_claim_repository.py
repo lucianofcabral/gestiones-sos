@@ -9,7 +9,7 @@ class InMemoryGroupClaimRepository:
 
     def __init__(self, claim_store: list[Claim] | None = None) -> None:
         self._store: list[GroupClaim] = []
-        self._claim_store = claim_store or []
+        self._claim_store = claim_store if claim_store is not None else []
 
     # ── BaseRepo ──────────────────────────────────────────────────────────────
 
