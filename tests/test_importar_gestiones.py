@@ -38,17 +38,17 @@ from src.domain.ports.uow import UnitOfWork
 
 DEFAULT_SHEET = "Reclamos y Reintegros"
 HEADERS = [
-    "N° Caso",
-    "N° Gestión",
     "Fecha",
-    "Asegurado",
+    "N° Gestión",
+    "Cliente",
+    "Dominio",
     "Póliza",
-    "Patente",
-    "Categoría",
+    "Tipo",
     "Motivo",
+    "N° Caso",
+    "Usuario Carga",
+    "Usuario Respuesta",
     "Estado",
-    "Carga",
-    "Responde",
     "ITR",
 ]
 
@@ -83,31 +83,31 @@ class TestParseExcel:
         """Happy path: valid rows are parsed with correct field mapping."""
         xlsx = _make_excel([
             [
-                "C-001",  # N° Caso (skip)
-                12345,  # N° Gestión
                 datetime(2025, 6, 15),  # Fecha
-                "Juan Pérez",  # Asegurado
+                12345,  # N° Gestión
+                "Juan Pérez",  # Cliente
+                "ABC-123",  # Dominio
                 "POL-123",  # Póliza
-                "ABC-123",  # Patente
-                "Accidente",  # Categoría
+                "Accidente",  # Tipo
                 "Choque frontal",  # Motivo
+                "C-001",  # N° Caso (skip)
+                "admin",  # Usuario Carga
+                "operador",  # Usuario Respuesta
                 "Pendiente",  # Estado
-                "admin",  # Carga
-                "operador",  # Responde
                 5,  # ITR
             ],
             [
-                "C-002",
-                12346,
                 datetime(2025, 7, 1),
+                12346,
                 "María García",
-                "POL-456",
                 "XYZ-789",
+                "POL-456",
                 "Robo",
                 "Hurto parcial",
-                "Cerrado",
+                "C-002",
                 "supervisor",
                 "analista",
+                "Cerrado",
                 3,
             ],
         ])
@@ -141,7 +141,7 @@ class TestParseExcel:
     def test_parse_date_string_dd_mm_yyyy(self) -> None:
         """Dates in ``DD/MM/YYYY`` string format are parsed correctly."""
         xlsx = _make_excel([
-            ["C-001", 1001, "15/06/2025", "A", "P-1", "AA-000", "", "", "", "", "", 0],
+            ["15/06/2025", 1001, "A", "AA-000", "P-1", "", "", "C-001", "", "", "", 0],
         ])
         result = parse_excel(xlsx)
         assert result[0].created_at == date(2025, 6, 15)
@@ -149,7 +149,7 @@ class TestParseExcel:
     def test_parse_empty_optional_fields_default_to_empty(self) -> None:
         """Cells with no value become empty string / 0 for optional fields."""
         xlsx = _make_excel([
-            ["", 2001, None, "", "", "", "", "", "", "", "", None],
+            [None, 2001, "", "", "", "", "", "", "", "", "", None],
         ])
         result = parse_excel(xlsx)
         r = result[0]
@@ -161,9 +161,9 @@ class TestParseExcel:
     def test_parse_skip_empty_rows(self) -> None:
         """Rows where ``N° Gestión`` is empty are skipped."""
         xlsx = _make_excel([
-            ["C-001", 3001, None, "A", "P-1", "AA-000", "", "", "", "", "", 0],
-            ["C-002", None, None, "B", "P-2", "BB-000", "", "", "", "", "", 0],
-            ["C-003", 3003, None, "C", "P-3", "CC-000", "", "", "", "", "", 0],
+            [None, 3001, "A", "AA-000", "P-1", "", "", "C-001", "", "", "", 0],
+            [None, None, "B", "BB-000", "P-2", "", "", "C-002", "", "", "", 0],
+            [None, 3003, "C", "CC-000", "P-3", "", "", "C-003", "", "", "", 0],
         ])
         result = parse_excel(xlsx)
         assert len(result) == 2
@@ -172,7 +172,7 @@ class TestParseExcel:
 
     def test_missing_required_column_raises(self) -> None:
         """Missing ``N° Gestión`` column raises ``ValueError``."""
-        bad_headers = ["N° Caso", "Fecha", "Asegurado"]
+        bad_headers = ["N° Caso", "Fecha", "Cliente"]
         xlsx = _make_excel([["C-001", "15/06/2025", "Juan"]], headers=bad_headers)
 
         with pytest.raises(ValueError, match="requerida"):
@@ -180,7 +180,7 @@ class TestParseExcel:
 
     def test_wrong_sheet_name_raises(self) -> None:
         """An incorrect sheet name raises ``ValueError``."""
-        xlsx = _make_excel([[1, 1001, None, "A", "P", "AA-000", "", "", "", "", "", 0]], sheet_name="WrongSheet")
+        xlsx = _make_excel([[None, 1001, "A", "AA-000", "P", "", "", 1, "", "", "", 0]], sheet_name="WrongSheet")
 
         with pytest.raises(ValueError, match="no existe"):
             parse_excel(xlsx, sheet_name="Reclamos y Reintegros")
@@ -188,8 +188,8 @@ class TestParseExcel:
     def test_non_integer_gestion_skips_row(self) -> None:
         """A row with a non-integer gestion value is silently skipped."""
         xlsx = _make_excel([
-            [None, "NOT_A_NUMBER", None, "A", "P", "AA-000", "", "", "", "", "", 0],
-            [None, 4002, None, "B", "P", "BB-000", "", "", "", "", "", 0],
+            [None, "NOT_A_NUMBER", "A", "AA-000", "P", "", "", "", "", "", "", 0],
+            [None, 4002, "B", "BB-000", "P", "", "", "", "", "", "", 0],
         ])
         result = parse_excel(xlsx)
         assert len(result) == 1
@@ -198,7 +198,7 @@ class TestParseExcel:
     def test_parse_with_custom_sheet_name(self) -> None:
         """The caller can specify a custom sheet name."""
         xlsx = _make_excel(
-            [[None, 5001, None, "A", "P", "AA-000", "", "", "", "", "", 0]],
+            [[None, 5001, "A", "AA-000", "P", "", "", "", "", "", "", 0]],
             sheet_name="CustomSheet",
         )
         result = parse_excel(xlsx, sheet_name="CustomSheet")
@@ -208,7 +208,7 @@ class TestParseExcel:
     def test_parse_gestion_as_float_string(self) -> None:
         """``gestion`` in scientific notation or float-as-string is handled."""
         xlsx = _make_excel([
-            [None, "12345.0", None, "A", "P", "AA-000", "", "", "", "", "", 0],
+            [None, "12345.0", "A", "AA-000", "P", "", "", "", "", "", "", 0],
         ])
         result = parse_excel(xlsx)
         assert result[0].gestion == 12345
@@ -229,17 +229,17 @@ class TestParseExcel:
         """Every mapped column produces the correct field in ParsedRow."""
         xlsx = _make_excel([
             [
-                "C-999",  # N° Caso (ignored)
-                7777,  # N° Gestión
                 datetime(2026, 1, 10),  # Fecha
-                "Cliente Test",  # Asegurado
+                7777,  # N° Gestión
+                "Cliente Test",  # Cliente
+                "PLATE-77",  # Dominio
                 "POL-ABC-999",  # Póliza
-                "PLATE-77",  # Patente
-                "CategoriaX",  # Categoría
+                "CategoriaX",  # Tipo
                 "MotivoY",  # Motivo
+                "C-999",  # N° Caso (ignored)
+                "UserCarga",  # Usuario Carga
+                "UserResp",  # Usuario Respuesta
                 "EstadoZ",  # Estado
-                "UserCarga",  # Carga
-                "UserResp",  # Responde
                 99,  # ITR
             ],
         ])
@@ -306,7 +306,7 @@ def claim_kind_repo() -> InMemoryClaimKindRepository:
 @pytest.fixture
 def group_claim_repo() -> InMemoryGroupClaimRepository:
     repo = InMemoryGroupClaimRepository()
-    repo.add(GroupClaim(name="SOS"))
+    repo.add(GroupClaim(name="SOS", external_reference="SOS-GRP"))
     return repo
 
 
@@ -579,7 +579,7 @@ class TestImportarGestionSOS:
         """When there is no 'SOS' group, the first group is used."""
         group_repo = InMemoryGroupClaimRepository()
         group_id = uuid4()
-        group_repo.add(GroupClaim(group_id=group_id, name="Default Group"))
+        group_repo.add(GroupClaim(group_id=group_id, name="Default Group", external_reference="DFT-GRP"))
 
         uow_cls = _make_fake_uow_class(claim_repo, sos_repo)
         uc = ImportarGestionSOS(
@@ -695,32 +695,32 @@ def test_integration_full_import_flow(
     # Arrange: produce .xlsx bytes as they would arrive from the UI
     xlsx = _make_excel([
         [
-            "C-100",
-            101,
-            datetime(2025, 1, 15),
-            "Alice",
-            "POL-A1",
-            "AAA-111",
-            "Accidente",
-            "Daños",
-            "Pendiente",
-            "user1",
-            "user2",
-            2,
+            datetime(2025, 1, 15),  # Fecha
+            101,  # N° Gestión
+            "Alice",  # Cliente
+            "AAA-111",  # Dominio
+            "POL-A1",  # Póliza
+            "Accidente",  # Tipo
+            "Daños",  # Motivo
+            "C-100",  # N° Caso
+            "user1",  # Usuario Carga
+            "user2",  # Usuario Respuesta
+            "Pendiente",  # Estado
+            2,  # ITR
         ],
         [
-            "C-101",
-            102,
-            datetime(2025, 2, 20),
-            "Bob",
-            "POL-B2",
-            "BBB-222",
-            "Robo",
-            "Pérdida total",
-            "Cerrado",
-            "admin",
-            "supervisor",
-            1,
+            datetime(2025, 2, 20),  # Fecha
+            102,  # N° Gestión
+            "Bob",  # Cliente
+            "BBB-222",  # Dominio
+            "POL-B2",  # Póliza
+            "Robo",  # Tipo
+            "Pérdida total",  # Motivo
+            "C-101",  # N° Caso
+            "admin",  # Usuario Carga
+            "supervisor",  # Usuario Respuesta
+            "Cerrado",  # Estado
+            1,  # ITR
         ],
     ])
 

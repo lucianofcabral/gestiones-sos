@@ -6,14 +6,14 @@ Column mapping (from the external "Gestión Reclamos y Reintegros" export):
     |--------------------|-----------------|
     | N° Gestión         | gestion         |
     | Fecha              | created_at      |
-    | Asegurado          | claimer_name    |
+    | Cliente            | claimer_name    |
     | Póliza             | policy_number   |
-    | Patente            | plate           |
-    | Categoría          | category        |
+    | Dominio            | plate           |
+    | Tipo               | category        |
     | Motivo             | reason          |
     | Estado             | status          |
-    | Carga              | load_user       |
-    | Responde           | response_user   |
+    | Usuario Carga      | load_user       |
+    | Usuario Respuesta  | response_user   |
     | ITR                | itr             |
 
 The "N° Caso" column is skipped.
@@ -30,14 +30,14 @@ from pydantic import BaseModel
 
 COL_GESTION = "N° Gestión"
 COL_FECHA = "Fecha"
-COL_ASEGURADO = "Asegurado"
+COL_ASEGURADO = "Cliente"
 COL_POLIZA = "Póliza"
-COL_PATENTE = "Patente"
-COL_CATEGORIA = "Categoría"
+COL_PATENTE = "Dominio"
+COL_CATEGORIA = "Tipo"
 COL_MOTIVO = "Motivo"
 COL_ESTADO = "Estado"
-COL_CARGA = "Carga"
-COL_RESPONDE = "Responde"
+COL_CARGA = "Usuario Carga"
+COL_RESPONDE = "Usuario Respuesta"
 COL_ITR = "ITR"
 
 # Columns that must exist in the Excel header
@@ -108,7 +108,7 @@ def parse_excel(
             or the file is empty / unreadable.
     """
     try:
-        wb = load_workbook(BytesIO(content), read_only=True, data_only=True)
+        wb = load_workbook(BytesIO(content), data_only=True)
     except Exception as exc:
         raise ValueError(f"No se pudo leer el archivo Excel: {exc}") from exc
 
