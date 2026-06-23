@@ -25,10 +25,6 @@ def register_grupos_page() -> None:
                 name_input = ui.input(
                     label="Nombre del grupo", placeholder="Ej: SOS Cobranzas",
                 ).classes("w-full")
-                ext_ref_input = ui.input(
-                    label="Referencia externa",
-                    placeholder="Ej: SOS-CBR-001",
-                ).classes("w-full")
                 desc_input = ui.input(
                     label="Descripción",
                     placeholder="Opcional",
@@ -40,11 +36,9 @@ def register_grupos_page() -> None:
                     if not name:
                         ui.notify("El nombre del grupo es requerido", type="warning")
                         return
-                    ext_ref = (ext_ref_input.value or "").strip() or None
                     desc = (desc_input.value or "").strip() or None
-                    container.registrar_grupo.execute(name, external_reference=ext_ref, description=desc)
+                    container.registrar_grupo.execute(name, description=desc)
                     name_input.value = ""
-                    ext_ref_input.value = ""
                     desc_input.value = ""
                     _render_grupos.refresh()
 
@@ -64,12 +58,6 @@ def register_grupos_page() -> None:
                         "align": "left",
                     },
                     {
-                        "name": "external_reference",
-                        "label": "Ref. Externa",
-                        "field": "external_reference",
-                        "align": "left",
-                    },
-                    {
                         "name": "description",
                         "label": "Descripción",
                         "field": "description",
@@ -79,7 +67,6 @@ def register_grupos_page() -> None:
                 rows = [
                     {
                         "name": g.name,
-                        "external_reference": g.external_reference or "—",
                         "description": g.description or "—",
                         "group_id": str(g.group_id),
                     }
@@ -93,9 +80,6 @@ def register_grupos_page() -> None:
                 for g in groups:
                     with ui.row().classes("items-center gap-4"):
                         ui.label(g.name).classes("text-sm text-gray-400 w-48")
-                        ui.label(g.external_reference or "—").classes(
-                            "text-sm text-gray-400 w-36"
-                        )
                         ui.button(
                             "Eliminar",
                             icon="delete",
