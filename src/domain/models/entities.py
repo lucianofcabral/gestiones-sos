@@ -115,7 +115,7 @@ class ClaimKind(BaseModel):
 class Claim(BaseModel):
     claim_id: UUID = Field(default_factory=uuid4)
     claim_kind_id: UUID = Field(default_factory=uuid4)
-    group_id: UUID = Field(default_factory=uuid4)
+    group_id: UUID | None = None
     claimer_name: str = Field(min_length=1, max_length=100)
     policy_number: str = Field(min_length=1, max_length=25)
     plate: str = Field(min_length=6)

@@ -4,6 +4,9 @@ from uuid import UUID
 
 from nicegui import ui
 
+from src.application.use_cases.claims.actualizar_grupo_de_gestion import (
+    ActualizarGrupoDeGestionInput,
+)
 from src.application.use_cases.claims.obtener_gestion_por_id import (
     ObtenerGestionPorIdInput,
 )
@@ -75,7 +78,39 @@ def register_gestiones_detalle_page() -> None:
                     _field("Póliza", detalle.policy_number)
                     _field("Patente", detalle.plate)
                     _field("Monto", f"${detalle.claimed_amount:,.2f}")
-                    _field("Grupo", detalle.group_name)
+                    with ui.column().classes("gap-0"):
+                        ui.label("Grupo").classes("text-xs text-gray-400")
+                        group_options = {
+                            str(g.group_id): g.name
+                            for g in container.obtener_grupos.execute()
+                        }
+                        cur_group = str(detalle.group_id) if detalle.group_id else None
+                        group_sel = ui.select(
+                            options=group_options,
+                            value=cur_group,
+                            with_input=True,
+                        ).classes("text-sm")
+
+                        @with_audit_user
+                        async def _on_group_change() -> None:
+                            new_val = group_sel.value
+                            if not new_val or new_val == cur_group:
+                                return
+                            try:
+                                container.actualizar_grupo_de_gestion.execute(
+                                    ActualizarGrupoDeGestionInput(
+                                        claim_id=detalle.claim_id,
+                                        new_group_id=UUID(new_val),
+                                    )
+                                )
+                                ui.notify("Grupo actualizado", type="positive")
+                                ui.navigate.reload()
+                            except ValueError as e:
+                                ui.notify(str(e), type="negative")
+                            except Exception as e:
+                                ui.notify(f"Error al actualizar grupo: {e}", type="negative")
+
+                        group_sel.on("update:model-value", _on_group_change)
                     _field("Tipo", detalle.claim_kind_name)
                     _field("Resuelto", "Sí" if detalle.solved else "No")
                     _field("Activo", "Sí" if detalle.active else "No")

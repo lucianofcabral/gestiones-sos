@@ -47,6 +47,7 @@ class PaymentDTO(BaseModel):
 
 class GestionDetalleDTO(BaseModel):
     claim_id: UUID
+    group_id: UUID | None = None
     claimer_name: str
     policy_number: str
     plate: str
@@ -138,6 +139,7 @@ class ObtenerGestionPorId:
         # 6. Assemble and return DTO
         return GestionDetalleDTO(
             claim_id=claim.claim_id,
+            group_id=claim.group_id,
             claimer_name=claim.claimer_name,
             policy_number=claim.policy_number,
             plate=claim.plate,

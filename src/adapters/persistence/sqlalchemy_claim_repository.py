@@ -85,6 +85,7 @@ class SqlAlchemyClaimRepository:
                 sa.update(claims)
                 .where(claims.c.claim_id == id)
                 .values(
+                    group_id=model.group_id,
                     claimer_name=model.claimer_name,
                     policy_number=model.policy_number,
                     plate=model.plate,

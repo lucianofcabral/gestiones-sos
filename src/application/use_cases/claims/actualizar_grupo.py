@@ -16,7 +16,12 @@ class ActualizarGrupo:
     def __init__(self, repo: GroupClaimRepoPort) -> None:
         self._repo = repo
 
-    def execute(self, group_id: UUID, name: str) -> GroupClaim | None:
+    def execute(
+        self,
+        group_id: UUID,
+        name: str,
+        description: str | None = None,
+    ) -> GroupClaim | None:
         existing = self._repo.get_by_id(group_id)
         if existing is None:
             return None
@@ -30,6 +35,7 @@ class ActualizarGrupo:
             group_id=group_id,
             name=name,
             external_reference=existing.external_reference,
+            description=description if description is not None else existing.description,
             created_at=existing.created_at,
         )
         if self._repo.update(group_id, updated):

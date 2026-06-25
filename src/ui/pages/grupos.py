@@ -4,6 +4,10 @@ from uuid import UUID
 
 from nicegui import ui
 
+from src.application.use_cases.claims.actualizar_grupo_de_gestion import (
+    ActualizarGrupoDeGestionInput,
+)
+from src.domain.models.entities import Claim, GroupClaim
 from src.infrastructure.container import Container
 from src.ui.components.shell import AppShell
 from src.ui.services.audit_helper import with_audit_user
@@ -16,6 +20,189 @@ def register_grupos_page() -> None:
             container = Container.get_instance()
 
             ui.label("Grupos").classes("text-2xl font-bold")
+
+            # ── Group actions (defined before UI to avoid UnboundLocalError) ──
+
+            @with_audit_user
+            async def _add_group() -> None:
+                name = (name_input.value or "").strip()
+                if not name:
+                    ui.notify("El nombre del grupo es requerido", type="warning")
+                    return
+                desc = (desc_input.value or "").strip() or None
+                container.registrar_grupo.execute(name, description=desc)
+                name_input.value = ""
+                desc_input.value = ""
+                _render_grupos.refresh()
+
+            def _edit_group(group: GroupClaim) -> None:
+                """Open an edit dialog for the group with member management."""
+
+                with ui.dialog() as dlg, ui.card().classes("w-[600px] max-w-full"):
+                    # ── State ─────────────────────────────────────────────
+                    available_select: ui.select | None = None
+
+                    def _claims_in_group() -> list[Claim]:
+                        return [
+                            c for c in container.claim_repo.get_all()
+                            if c.group_id == group.group_id
+                        ]
+
+                    def _claims_available() -> list[Claim]:
+                        return [
+                            c for c in container.claim_repo.get_all()
+                            if c.group_id != group.group_id
+                        ]
+
+                    def _rebuild_members() -> None:
+                        members_container.clear()
+                        members = _claims_in_group()
+                        with members_container:
+                            ui.label(f"Gestiones ({len(members)})").classes(
+                                "text-sm font-bold mb-1"
+                            )
+                            if not members:
+                                ui.label(
+                                    "No hay gestiones en este grupo."
+                                ).classes("text-sm text-gray-400 italic")
+                            for cm in members:
+                                with ui.row().classes(
+                                    "items-center gap-2 py-1 w-full"
+                                ):
+                                    ui.label(
+                                        f"{cm.claimer_name} — {cm.policy_number} — {cm.plate}"
+                                    ).classes("text-sm flex-1")
+                                    ui.button(
+                                        "Quitar",
+                                        icon="remove_circle",
+                                        on_click=lambda cid=cm.claim_id: _remove(
+                                            cid
+                                        ),
+                                    ).props(
+                                        "flat size=sm dense color=negative"
+                                    )
+
+                    def _rebuild_available() -> None:
+                        avail = _claims_available()
+                        if available_select is not None:
+                            available_select.options = {
+                                str(c.claim_id): (
+                                    f"{c.claimer_name} — "
+                                    f"{c.policy_number} — {c.plate}"
+                                )
+                                for c in avail
+                            }
+                        add_row.set_visibility(len(avail) > 0)
+
+                    def _remove(claim_id: UUID) -> None:
+                        try:
+                            container.actualizar_grupo_de_gestion.execute(
+                                ActualizarGrupoDeGestionInput(
+                                    claim_id=claim_id, new_group_id=None
+                                )
+                            )
+                            ui.notify("Gestión quitada del grupo", type="positive")
+                        except Exception as e:
+                            ui.notify(f"Error: {e}", type="negative")
+                        _rebuild_members()
+                        _rebuild_available()
+
+                    def _add() -> None:
+                        if available_select is None or not available_select.value:
+                            return
+                        try:
+                            container.actualizar_grupo_de_gestion.execute(
+                                ActualizarGrupoDeGestionInput(
+                                    claim_id=UUID(available_select.value),
+                                    new_group_id=group.group_id,
+                                )
+                            )
+                            ui.notify("Gestión agregada al grupo", type="positive")
+                        except Exception as e:
+                            ui.notify(f"Error: {e}", type="negative")
+                        available_select.value = None
+                        _rebuild_members()
+                        _rebuild_available()
+
+                    # ── Header ──────────────────────────────────────────────
+                    ui.label(f"Editar Grupo: {group.name}").classes(
+                        "text-lg font-bold mb-2"
+                    )
+
+                    # ── Basic info ──────────────────────────────────────────
+                    with ui.row().classes("w-full gap-4"):
+                        name_inp = ui.input(
+                            label="Nombre", value=group.name,
+                        ).classes("flex-1")
+                        desc_inp = ui.input(
+                            label="Descripción", value=group.description or "",
+                        ).classes("flex-1")
+
+                    ui.separator().classes("my-2")
+
+                    # ── Members list ────────────────────────────────────────
+                    members_container = ui.column().classes("w-full")
+                    _rebuild_members()
+
+                    ui.separator().classes("my-2")
+
+                    # ── Add claim ───────────────────────────────────────────
+                    add_row = ui.row().classes("items-center gap-2 w-full")
+                    with add_row:
+                        available_select = ui.select(
+                            label="Agregar gestión...",
+                            options={},
+                            with_input=True,
+                        ).classes("flex-1")
+                        ui.button(
+                            "Agregar",
+                            icon="add",
+                            on_click=lambda: _add(),
+                        ).props("flat size=sm dense")
+                    _rebuild_available()
+
+                    # ── Save / Cancel ───────────────────────────────────────
+                    with ui.row().classes("gap-2 justify-end mt-2"):
+                        ui.button("Cancelar", on_click=dlg.close).props("flat")
+
+                        @with_audit_user
+                        async def _save(d=dlg, gid=group.group_id) -> None:
+                            name = (name_inp.value or "").strip()
+                            if not name:
+                                ui.notify(
+                                    "El nombre es requerido", type="warning"
+                                )
+                                return
+                            desc = (desc_inp.value or "").strip() or None
+                            result = container.actualizar_grupo.execute(
+                                gid, name, description=desc
+                            )
+                            if result is None:
+                                ui.notify(
+                                    "Grupo no encontrado", type="negative"
+                                )
+                            else:
+                                ui.notify(
+                                    "Grupo actualizado", type="positive"
+                                )
+                            d.close()
+                            _render_grupos.refresh()
+
+                        ui.button("Guardar", on_click=_save)
+
+                dlg.open()
+
+            @with_audit_user
+            def _delete_group(group_id: UUID) -> None:
+                try:
+                    result = container.eliminar_grupo.execute(group_id)
+                    if result:
+                        ui.notify("Grupo eliminado", type="positive")
+                    else:
+                        ui.notify("Grupo no encontrado", type="warning")
+                except ValueError as e:
+                    ui.notify(str(e), type="negative")
+                _render_grupos.refresh()
 
             # ── Create form ────────────────────────────────────────────────
 
@@ -39,7 +226,7 @@ def register_grupos_page() -> None:
 
             @ui.refreshable
             def _render_grupos() -> None:
-                groups = container.obtener_grupos.execute()
+                groups = [g for g in container.obtener_grupos.execute() if g.active]
                 claims = container.claim_repo.get_all()
 
                 # Aggregate stats per group
@@ -61,7 +248,7 @@ def register_grupos_page() -> None:
                     ui.label("Descripción").classes("text-xs w-48")
                     ui.label("Gestiones").classes("text-xs w-20 text-center")
                     ui.label("Monto Total").classes("text-xs w-28 text-right")
-                    ui.label("").classes("w-20")
+                    ui.label("Acciones").classes("text-xs w-28")
 
                 # Data rows
                 for g in groups:
@@ -79,30 +266,16 @@ def register_grupos_page() -> None:
                         ui.label(f"${s['total']:,.2f}").classes(
                             "text-sm w-28 text-right"
                         )
-                        ui.button(
-                            "Eliminar",
-                            icon="delete",
-                            on_click=lambda gid=g.group_id: _delete_group(gid),
-                        ).props("flat size=sm dense color=negative")
-
-            @with_audit_user
-            async def _add_group() -> None:
-                name = (name_input.value or "").strip()
-                if not name:
-                    ui.notify("El nombre del grupo es requerido", type="warning")
-                    return
-                desc = (desc_input.value or "").strip() or None
-                container.registrar_grupo.execute(name, description=desc)
-                name_input.value = ""
-                desc_input.value = ""
-                _render_grupos.refresh()
-
-            @with_audit_user
-            def _delete_group(group_id: UUID) -> None:
-                try:
-                    container.eliminar_grupo.execute(group_id)
-                except ValueError as e:
-                    ui.notify(str(e), type="negative")
-                _render_grupos.refresh()
+                        with ui.row().classes("gap-1"):
+                            ui.button(
+                                "Editar",
+                                icon="edit",
+                                on_click=lambda g=g: _edit_group(g),
+                            ).props("flat size=sm dense")
+                            ui.button(
+                                "Eliminar",
+                                icon="delete",
+                                on_click=lambda gid=g.group_id: _delete_group(gid),
+                            ).props("flat size=sm dense color=negative")
 
             _render_grupos()

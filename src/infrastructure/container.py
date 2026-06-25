@@ -57,6 +57,9 @@ from src.application.use_cases.documents.subir_documento import SubirDocumento
 from src.application.use_cases.documents.descargar_documento import DescargarDocumento
 from src.application.use_cases.documents.obtener_documentos import ObtenerDocumentos
 from src.application.use_cases.claims.actualizar_grupo import ActualizarGrupo
+from src.application.use_cases.claims.actualizar_grupo_de_gestion import (
+    ActualizarGrupoDeGestion,
+)
 from src.application.use_cases.claims.eliminar_gestion_sos import EliminarGestionSOS
 from src.application.use_cases.claims.obtener_gestion_por_id import (
     ObtenerGestionPorId,
@@ -284,6 +287,10 @@ class Container:
             group_repo=self._group_claim_repo, claim_repo=self._claim_repo
         )
         self._actualizar_grupo = ActualizarGrupo(self._group_claim_repo)
+        self._actualizar_grupo_de_gestion = ActualizarGrupoDeGestion(
+            uow=SqlAlchemyUnitOfWork(enable_audit=True),
+            group_claim_repo=self._group_claim_repo,
+        )
 
         # Claim registration use cases
         self._obtener_claim_kinds = ObtenerClaimKinds(self._claim_kind_repo)
@@ -499,6 +506,10 @@ class Container:
     @property
     def actualizar_grupo(self) -> ActualizarGrupo:
         return self._actualizar_grupo
+
+    @property
+    def actualizar_grupo_de_gestion(self) -> ActualizarGrupoDeGestion:
+        return self._actualizar_grupo_de_gestion
 
     @property
     def registrar_factura(self) -> RegistrarFactura:

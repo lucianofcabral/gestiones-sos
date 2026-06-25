@@ -26,7 +26,7 @@ claims = sa.Table(
     metadata,
     sa.Column("claim_id", sa.UUID, primary_key=True),
     sa.Column("claim_kind_id", sa.UUID, nullable=False),
-    sa.Column("group_id", sa.UUID, nullable=False),
+    sa.Column("group_id", sa.UUID, nullable=True),
     sa.Column("claimer_name", sa.String(100), nullable=False),
     sa.Column("policy_number", sa.String(25), nullable=False),
     sa.Column("plate", sa.String(20), nullable=False),
