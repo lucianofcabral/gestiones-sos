@@ -34,6 +34,7 @@ class SqlAlchemyBillingRepository:
             period_id=row.period_id,
             emited_date=row.emited_date,
             amount=float(row.amount),
+            description=getattr(row, "description", None),
             active=row.active,
             created_at=row.created_at,
         )
@@ -49,6 +50,7 @@ class SqlAlchemyBillingRepository:
                     period_id=model.period_id,
                     emited_date=model.emited_date,
                     amount=model.amount,
+                    description=model.description,
                     active=model.active,
                     created_at=model.created_at,
                 )
@@ -76,6 +78,7 @@ class SqlAlchemyBillingRepository:
                     period_id=model.period_id,
                     emited_date=model.emited_date,
                     amount=model.amount,
+                    description=model.description,
                 )
             )
         return result.rowcount > 0

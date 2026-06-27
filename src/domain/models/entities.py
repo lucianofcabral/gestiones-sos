@@ -87,6 +87,7 @@ class Invoice(BaseModel):
     period_id: UUID = Field(default_factory=uuid4)
     emited_date: datetime
     amount: float = Field(gt=0)
+    description: str | None = None
     active: bool = True
     created_at: datetime = Field(default_factory=datetime.now)
 

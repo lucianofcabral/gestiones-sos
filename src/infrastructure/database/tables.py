@@ -179,6 +179,7 @@ invoices = sa.Table(
     sa.Column("period_id", sa.UUID, sa.ForeignKey("periods.period_id"), nullable=False),
     sa.Column("emited_date", sa.DateTime, nullable=False),
     sa.Column("amount", sa.Numeric(12, 2), nullable=False),
+    sa.Column("description", sa.Text, nullable=True),
     sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
     sa.Column("active", sa.Boolean, nullable=False, server_default=sa.text("true")),
 )

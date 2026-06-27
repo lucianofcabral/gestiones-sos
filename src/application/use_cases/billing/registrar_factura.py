@@ -17,6 +17,7 @@ class RegistrarFactura:
         period_id: UUID
         emited_date: datetime
         amount: float
+        description: str | None = None
 
     class Output(BaseModel):
         invoice: Invoice
@@ -30,6 +31,7 @@ class RegistrarFactura:
             period_id=input.period_id,
             emited_date=input.emited_date,
             amount=input.amount,
+            description=input.description,
         )
         created = self._billing_repo.add(invoice)
         return self.Output(invoice=created)
