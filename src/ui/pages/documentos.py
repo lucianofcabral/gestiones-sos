@@ -36,24 +36,28 @@ def register_documentos_page() -> None:
                         "label": "Tipo",
                         "field": "type",
                         "align": "left",
+                        "sortable": True,
                     },
                     {
                         "name": "size",
                         "label": "Tamaño",
                         "field": "size",
                         "align": "right",
+                        "sortable": True,
                     },
                     {
                         "name": "mime",
                         "label": "MIME",
                         "field": "mime",
                         "align": "left",
+                        "sortable": True,
                     },
                     {
                         "name": "date",
                         "label": "Fecha",
                         "field": "date",
                         "align": "left",
+                        "sortable": True,
                     },
                     {
                         "name": "actions",

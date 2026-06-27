@@ -158,7 +158,9 @@ def _render_sos_section(detalle: any) -> None:
         ]:
             ui.label(label).classes(f"text-xs {width}")
 
-    for sc in detalle.sos_records:
+    for sc in sorted(
+        detalle.sos_records, key=lambda r: r.gestion, reverse=True
+    ):
         with ui.row().classes("items-center gap-2 py-1 hover:bg-gray-800"):
             ui.label(str(sc.gestion)).classes("text-sm w-20")
             ui.label(sc.category).classes("text-sm w-28")
@@ -216,7 +218,9 @@ def _render_payments_section(detalle: any) -> None:
         ]:
             ui.label(label).classes(f"text-xs {width}")
 
-    for p in detalle.payments:
+    for p in sorted(
+        detalle.payments, key=lambda pm: pm.created_date, reverse=True
+    ):
         with ui.row().classes("items-center gap-2 py-1 hover:bg-gray-800"):
             ui.label(f"${p.amount:,.2f}").classes("text-sm w-28 text-right")
             ui.label(p.created_date.strftime("%Y-%m-%d")).classes(

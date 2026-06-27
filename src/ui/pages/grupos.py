@@ -204,6 +204,19 @@ def register_grupos_page() -> None:
                     ui.notify(str(e), type="negative")
                 _render_grupos.refresh()
 
+            # ── Sorting state ─────────────────────────────────────────────────
+            _sort_col = 0
+            _sort_dir = 1
+
+            def _sort(col_idx: int) -> None:
+                nonlocal _sort_col, _sort_dir
+                if _sort_col == col_idx:
+                    _sort_dir *= -1
+                else:
+                    _sort_col = col_idx
+                    _sort_dir = 1
+                _render_grupos.refresh()
+
             # ── Create form ────────────────────────────────────────────────
 
             with ui.card().classes("w-full p-4 mb-6"):
@@ -226,6 +239,7 @@ def register_grupos_page() -> None:
 
             @ui.refreshable
             def _render_grupos() -> None:
+                nonlocal _sort_col, _sort_dir
                 groups = [g for g in container.obtener_grupos.execute() if g.active]
                 claims = container.claim_repo.get_all()
 
@@ -240,15 +254,38 @@ def register_grupos_page() -> None:
                     stats[gid]["count"] += 1
                     stats[gid]["total"] += c.claimed_amount
 
+                # Sort
+                _col_keys = [
+                    lambda g: g.name,
+                    lambda g: g.description or "",
+                    lambda g: stats.get(g.group_id, {"count": 0})["count"],
+                    lambda g: stats.get(g.group_id, {"total": 0.0})["total"],
+                    lambda g: "",
+                ]
+                groups = sorted(
+                    groups, key=_col_keys[_sort_col], reverse=_sort_dir == -1
+                )
+
                 # Header row
+                _col_labels = [
+                    ("Nombre", "text-xs w-40"),
+                    ("Descripción", "text-xs w-48"),
+                    ("Gestiones", "text-xs w-20 text-center"),
+                    ("Monto Total", "text-xs w-28 text-right"),
+                    ("Acciones", "text-xs w-28"),
+                ]
                 with ui.row().classes(
                     "items-center gap-4 py-2 border-b border-gray-600 font-bold w-full"
                 ):
-                    ui.label("Nombre").classes("text-xs w-40")
-                    ui.label("Descripción").classes("text-xs w-48")
-                    ui.label("Gestiones").classes("text-xs w-20 text-center")
-                    ui.label("Monto Total").classes("text-xs w-28 text-right")
-                    ui.label("Acciones").classes("text-xs w-28")
+                    for i, (label, cls) in enumerate(_col_labels):
+                        arrow = (
+                            " ▲" if _sort_col == i and _sort_dir == 1
+                            else " ▼" if _sort_col == i
+                            else ""
+                        )
+                        ui.label(f"{label}{arrow}").classes(
+                            f"{cls} cursor-pointer"
+                        ).on("click", lambda i=i: _sort(i))
 
                 # Data rows
                 for g in groups:

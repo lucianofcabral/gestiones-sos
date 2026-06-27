@@ -91,10 +91,24 @@ def register_facturacion_page() -> None:
                     on_click=_create_invoice,
                 )
 
+            # ── Sorting state ─────────────────────────────────────────────────
+            _sort_col = 0
+            _sort_dir = 1
+
+            def _sort(col_idx: int) -> None:
+                nonlocal _sort_col, _sort_dir
+                if _sort_col == col_idx:
+                    _sort_dir *= -1
+                else:
+                    _sort_col = col_idx
+                    _sort_dir = 1
+                _render_invoices.refresh()
+
             # ── Invoice list ─────────────────────────────────────────────────
 
             @ui.refreshable
             def _render_invoices() -> None:
+                nonlocal _sort_col, _sort_dir
                 selected_period_id = period_selector.value
 
                 if selected_period_id:
@@ -107,6 +121,42 @@ def register_facturacion_page() -> None:
                 # Update total
                 total = sum(inv.amount for inv in invoices)
                 total_label.text = f"Total facturado: ${total:,.2f}"
+
+                if not invoices:
+                    ui.label("No hay facturas registradas.").classes(
+                        "text-gray-400 italic mt-2"
+                    )
+                    return
+
+                # Sort
+                _fact_keys = [
+                    lambda inv: inv.invoice_number,
+                    lambda inv: inv.emited_date,
+                    lambda inv: inv.amount,
+                ]
+                invoices = sorted(
+                    invoices, key=_fact_keys[_sort_col], reverse=_sort_dir == -1
+                )
+
+                # Header
+                _fact_labels = [
+                    ("Número", "text-xs w-32"),
+                    ("Fecha", "text-xs w-28"),
+                    ("Monto", "text-xs w-24 text-right"),
+                    ("", "text-xs w-10"),
+                ]
+                with ui.row().classes(
+                    "items-center gap-4 py-2 border-b border-gray-600 font-bold"
+                ):
+                    for i, (label, cls) in enumerate(_fact_labels):
+                        arrow = (
+                            " ▲" if _sort_col == i and _sort_dir == 1
+                            else " ▼" if _sort_col == i
+                            else ""
+                        )
+                        ui.label(f"{label}{arrow}").classes(
+                            f"{cls} cursor-pointer"
+                        ).on("click", lambda i=i: _sort(i))
 
                 for inv in invoices:
                     with ui.row().classes("items-center gap-4 py-1"):

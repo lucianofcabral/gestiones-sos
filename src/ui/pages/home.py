@@ -45,20 +45,29 @@ def _render_metrics(
                     "label": "Reclamante",
                     "field": "claimer",
                     "align": "left",
+                    "sortable": True,
                 },
                 {
                     "name": "policy",
                     "label": "Póliza",
                     "field": "policy",
                     "align": "left",
+                    "sortable": True,
                 },
                 {
                     "name": "plate",
                     "label": "Patente",
                     "field": "plate",
                     "align": "left",
+                    "sortable": True,
                 },
-                {"name": "date", "label": "Fecha", "field": "date", "align": "left"},
+                {
+                    "name": "date",
+                    "label": "Fecha",
+                    "field": "date",
+                    "align": "left",
+                    "sortable": True,
+                },
             ]
             rows = [
                 {

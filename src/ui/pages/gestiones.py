@@ -35,6 +35,30 @@ def register_gestiones_page() -> None:
 
             toggle.on("update:model-value", _on_toggle_change)
 
+            # ── Sorting state ─────────────────────────────────────────────────
+            _sort_col = 0
+            _sort_dir = 1
+            _gest_columns = [
+                ("Tipo", "w-20", lambda g: g.claim_kind_name),
+                ("Gestión/Ref.", "w-24", lambda g: g.gestion_or_reference),
+                ("Asegurado", "w-36", lambda g: g.claimer_name),
+                ("Póliza", "w-28", lambda g: g.policy_number),
+                ("Patente", "w-24", lambda g: g.plate),
+                ("Monto", "w-28", lambda g: g.claimed_amount),
+                ("Fecha", "w-28", lambda g: g.created_at),
+                ("Resuelto", "w-16", lambda g: g.solved),
+                ("", "w-10", lambda g: ""),
+            ]
+
+            def _sort(col_idx: int) -> None:
+                nonlocal _sort_col, _sort_dir
+                if _sort_col == col_idx:
+                    _sort_dir *= -1
+                else:
+                    _sort_col = col_idx
+                    _sort_dir = 1
+                _render_gestiones.refresh()
+
             # ── Delete handler ────────────────────────────────────────────────
             @with_audit_user
             def _delete_gestion(claim_id: str, claim_kind_name: str,
@@ -80,22 +104,26 @@ def register_gestiones_page() -> None:
                     )
                     return
 
+                # Sort
+                gestiones = sorted(
+                    gestiones,
+                    key=_gest_columns[_sort_col][2],
+                    reverse=_sort_dir == -1,
+                )
+
                 # Table header
                 with ui.row().classes(
                     "items-center gap-2 py-2 border-b border-gray-600 font-bold"
                 ):
-                    for label, width in [
-                        ("Tipo", "w-20"),
-                        ("Gestión/Ref.", "w-24"),
-                        ("Asegurado", "w-36"),
-                        ("Póliza", "w-28"),
-                        ("Patente", "w-24"),
-                        ("Monto", "w-28"),
-                        ("Fecha", "w-28"),
-                        ("Resuelto", "w-16"),
-                        ("", "w-10"),
-                    ]:
-                        ui.label(label).classes(f"text-xs {width}")
+                    for i, (label, width, _) in enumerate(_gest_columns):
+                        arrow = (
+                            " ▲" if _sort_col == i and _sort_dir == 1
+                            else " ▼" if _sort_col == i
+                            else ""
+                        )
+                        ui.label(f"{label}{arrow}").classes(
+                            f"text-xs {width} cursor-pointer"
+                        ).on("click", lambda i=i: _sort(i))
 
                 # Table rows
                 for g in gestiones:

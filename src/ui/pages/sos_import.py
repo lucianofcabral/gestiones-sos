@@ -102,15 +102,15 @@ def _render_preview(rows: list[ParsedRow], area: ui.column) -> None:
         columns = [
             {"name": "gestion", "label": "N° Gestión", "field": "gestion", "sortable": True},
             {"name": "fecha", "label": "Fecha", "field": "fecha", "sortable": True},
-            {"name": "asegurado", "label": "Asegurado", "field": "asegurado"},
-            {"name": "poliza", "label": "Póliza", "field": "poliza"},
-            {"name": "patente", "label": "Patente", "field": "patente"},
-            {"name": "categoria", "label": "Categoría", "field": "categoria"},
-            {"name": "motivo", "label": "Motivo", "field": "motivo"},
-            {"name": "estado", "label": "Estado", "field": "estado"},
-            {"name": "carga", "label": "Carga", "field": "carga"},
-            {"name": "responde", "label": "Responde", "field": "responde"},
-            {"name": "itr", "label": "ITR", "field": "itr"},
+            {"name": "asegurado", "label": "Asegurado", "field": "asegurado", "sortable": True},
+            {"name": "poliza", "label": "Póliza", "field": "poliza", "sortable": True},
+            {"name": "patente", "label": "Patente", "field": "patente", "sortable": True},
+            {"name": "categoria", "label": "Categoría", "field": "categoria", "sortable": True},
+            {"name": "motivo", "label": "Motivo", "field": "motivo", "sortable": True},
+            {"name": "estado", "label": "Estado", "field": "estado", "sortable": True},
+            {"name": "carga", "label": "Carga", "field": "carga", "sortable": True},
+            {"name": "responde", "label": "Responde", "field": "responde", "sortable": True},
+            {"name": "itr", "label": "ITR", "field": "itr", "sortable": True},
         ]
 
         rows_data = [
@@ -151,8 +151,8 @@ def _render_results(result, area: ui.column) -> None:
                 ui.label("Detalle de errores:").classes("text-lg font-bold mt-4")
                 columns = [
                     {"name": "row", "label": "Fila", "field": "row", "sortable": True},
-                    {"name": "gestion", "label": "Gestión", "field": "gestion"},
-                    {"name": "error", "label": "Error", "field": "error"},
+                    {"name": "gestion", "label": "Gestión", "field": "gestion", "sortable": True},
+                    {"name": "error", "label": "Error", "field": "error", "sortable": True},
                 ]
                 rows_data = [
                     {

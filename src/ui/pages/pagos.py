@@ -181,9 +181,23 @@ def register_pagos_page() -> None:
                 nc = container.obtener_ncs.get_by_payment_id(payment_id)
                 return nc is not None
 
+            # ── Sort state ────────────────────────────────────────────────────
+            _sort_col = 0
+            _sort_dir = 1
+
+            def _sort(col_idx: int) -> None:
+                nonlocal _sort_col, _sort_dir
+                if _sort_col == col_idx:
+                    _sort_dir *= -1
+                else:
+                    _sort_col = col_idx
+                    _sort_dir = 1
+                _payments_table.refresh()
+
             # ── Payments table (refreshable) ──────────────────────────────────
             @ui.refreshable
             def _payments_table() -> None:
+                nonlocal _sort_col, _sort_dir
                 all_payments = container.obtener_pagos.get_all()
                 payments = _apply_filters(all_payments)
 
@@ -213,6 +227,16 @@ def register_pagos_page() -> None:
                     if grp:
                         all_groups[gc.claim_id] = grp.name
 
+                # Pre-compute NC status per payment
+                nc_status: dict[UUID, str] = {}
+                for p in payments:
+                    nc = container.obtener_ncs.get_by_payment_id(p.payment_id)
+                    nc_status[p.payment_id] = (
+                        "Entregado" if nc and nc.delivered
+                        else "Pendiente" if nc
+                        else ""
+                    )
+
                 # ── Text filter (on claim fields: policy, customer, plate) ─
                 q = (filter_text.value or "").strip().lower()
                 if q:
@@ -236,28 +260,56 @@ def register_pagos_page() -> None:
                     ).classes("text-gray-400 italic mt-4")
                     return
 
+                # Sort
+                _sort_keys = [
+                    lambda p: p.amount,
+                    lambda p: agent_options.get(str(p.payer_id), ""),
+                    lambda p: via_options.get(str(p.payment_via_id), ""),
+                    lambda p: agent_options.get(str(p.payee_id), ""),
+                    lambda p: all_claims.get(p.claim_id).claimer_name if all_claims.get(p.claim_id) else "",
+                    lambda p: all_kinds.get(all_claims[p.claim_id].claim_kind_id, "") if p.claim_id in all_claims else "",
+                    lambda p: all_groups.get(p.claim_id, ""),
+                    lambda p: all_claims.get(p.claim_id).plate if all_claims.get(p.claim_id) else "",
+                    lambda p: all_claims.get(p.claim_id).policy_number if all_claims.get(p.claim_id) else "",
+                    lambda p: str(p.claim_id),
+                    lambda p: p.created_date,
+                    lambda p: nc_status.get(p.payment_id, ""),
+                    lambda p: p.active,
+                ]
+                payments = sorted(
+                    payments, key=_sort_keys[_sort_col],
+                    reverse=_sort_dir == -1
+                )
+
                 # Header
+                _cols = [
+                    ("Monto", "w-24 text-right"),
+                    ("Pagador", "w-24"),
+                    ("Medio", "w-20"),
+                    ("Beneficiario", "w-24"),
+                    ("Cliente", "w-28"),
+                    ("Tipo", "w-20"),
+                    ("Grupo", "w-20"),
+                    ("Dominio", "w-24"),
+                    ("Póliza", "w-24"),
+                    ("Gestión", "w-20"),
+                    ("Fecha", "w-24"),
+                    ("NC", "w-20"),
+                    ("Activo", "w-14"),
+                    ("Acciones", "w-36"),
+                ]
                 with ui.row().classes(
                     "items-center gap-2 py-2 border-b border-gray-600 font-bold"
                 ):
-                    cols = [
-                        ("Monto", "w-24 text-right"),
-                        ("Pagador", "w-24"),
-                        ("Medio", "w-20"),
-                        ("Beneficiario", "w-24"),
-                        ("Cliente", "w-28"),
-                        ("Tipo", "w-20"),
-                        ("Grupo", "w-20"),
-                        ("Dominio", "w-24"),
-                        ("Póliza", "w-24"),
-                        ("Gestión", "w-20"),
-                        ("Fecha", "w-24"),
-                        ("NC", "w-20"),
-                        ("Activo", "w-14"),
-                        ("Acciones", "w-36"),
-                    ]
-                    for label, width in cols:
-                        ui.label(label).classes(f"text-xs {width}")
+                    for i, (label, width) in enumerate(_cols):
+                        arrow = (
+                            " ▲" if _sort_col == i and _sort_dir == 1
+                            else " ▼" if _sort_col == i
+                            else ""
+                        )
+                        ui.label(f"{label}{arrow}").classes(
+                            f"text-xs {width} cursor-pointer"
+                        ).on("click", lambda i=i: _sort(i))
 
                 # Rows
                 for p in payments:
