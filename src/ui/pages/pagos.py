@@ -12,12 +12,6 @@ from src.application.use_cases.payments.inactivar_pago import (
     InactivarPagoInput,
 )
 from src.application.use_cases.payments.activar_pago import ActivarPagoInput
-from src.application.use_cases.payments.marcar_nc_entregada import (
-    MarcarNotaCreditoEntregadaInput,
-)
-from src.application.use_cases.payments.registrar_nc import (
-    RegistrarNotaCreditoInput,
-)
 from src.application.use_cases.payments.registrar_pago import (
     RegistrarPagoInput,
 )
@@ -83,6 +77,17 @@ def register_pagos_page() -> None:
                 .classes("w-32")
             )
             filter_active_only = ui.checkbox("Solo activos")
+
+            # ── Text filter (live, searches claim fields) ─────────────────────
+            filter_text = (
+                ui.input(
+                    label="Buscar",
+                    placeholder="Póliza, cliente o dominio...",
+                )
+                .props("dense outlined")
+                .classes("w-64")
+                .on("update:model-value", lambda: _payments_table.refresh())
+            )
 
             # ── Action + Filter row ───────────────────────────────────────────
             with ui.row().classes("items-center gap-2 mt-2 flex-wrap"):
@@ -163,6 +168,7 @@ def register_pagos_page() -> None:
 
             def _clear_filters() -> None:
                 filter_claim_id.value = ""
+                filter_text.value = ""
                 filter_date_from.value = ""
                 filter_date_to.value = ""
                 filter_amount_min.value = None
@@ -191,20 +197,64 @@ def register_pagos_page() -> None:
                 agent_options = _get_agent_options()
                 via_options = _get_via_options()
 
+                # Resolve claim data for all payments
+                all_claims = {
+                    c.claim_id: c for c in container.claim_repo.get_all()
+                }
+                all_kinds = {
+                    k.claim_kind_id: k.name
+                    for k in container.claim_kind_repo.get_all()
+                }
+                all_groups: dict[UUID, str] = {}
+                for gc in container.grouped_claim_repo.get_all():
+                    grp = container.group_claim_repo.get_by_id(
+                        gc.group_claim_id
+                    )
+                    if grp:
+                        all_groups[gc.claim_id] = grp.name
+
+                # ── Text filter (on claim fields: policy, customer, plate) ─
+                q = (filter_text.value or "").strip().lower()
+                if q:
+                    filtered: list = []
+                    for p in payments:
+                        claim = all_claims.get(p.claim_id)
+                        if not claim:
+                            filtered.append(p)
+                            continue
+                        if (
+                            q in claim.policy_number.lower()
+                            or q in claim.claimer_name.lower()
+                            or q in claim.plate.lower()
+                        ):
+                            filtered.append(p)
+                    payments = filtered
+
+                if not payments:
+                    ui.label(
+                        "No hay pagos que coincidan con los filtros"
+                    ).classes("text-gray-400 italic mt-4")
+                    return
+
                 # Header
                 with ui.row().classes(
                     "items-center gap-2 py-2 border-b border-gray-600 font-bold"
                 ):
                     cols = [
-                        ("Monto", "w-28 text-right"),
-                        ("Pagador", "w-32"),
-                        ("Medio", "w-28"),
-                        ("Beneficiario", "w-32"),
-                        ("Gestión", "w-24"),
-                        ("Fecha", "w-28"),
-                        ("NC", "w-24"),
-                        ("Activo", "w-16"),
-                        ("Acciones", "w-44"),
+                        ("Monto", "w-24 text-right"),
+                        ("Pagador", "w-24"),
+                        ("Medio", "w-20"),
+                        ("Beneficiario", "w-24"),
+                        ("Cliente", "w-28"),
+                        ("Tipo", "w-20"),
+                        ("Grupo", "w-20"),
+                        ("Dominio", "w-24"),
+                        ("Póliza", "w-24"),
+                        ("Gestión", "w-20"),
+                        ("Fecha", "w-24"),
+                        ("NC", "w-20"),
+                        ("Activo", "w-14"),
+                        ("Acciones", "w-36"),
                     ]
                     for label, width in cols:
                         ui.label(label).classes(f"text-xs {width}")
@@ -214,6 +264,22 @@ def register_pagos_page() -> None:
                     payer_name = agent_options.get(str(p.payer_id), "—")
                     payee_name = agent_options.get(str(p.payee_id), "—")
                     via_name = via_options.get(str(p.payment_via_id), "—")
+
+                    # Resolve claim data
+                    claim = all_claims.get(p.claim_id)
+                    c_name = claim.claimer_name if claim else "—"
+                    c_kind = (
+                        all_kinds.get(claim.claim_kind_id, "—")
+                        if claim
+                        else "—"
+                    )
+                    c_group = (
+                        all_groups.get(claim.claim_id, "—")
+                        if claim
+                        else "—"
+                    )
+                    c_plate = claim.plate if claim else "—"
+                    c_policy = claim.policy_number if claim else "—"
 
                     # Check NC status for this payment
                     nc = container.obtener_ncs.get_by_payment_id(p.payment_id)
@@ -234,22 +300,27 @@ def register_pagos_page() -> None:
                         "items-center gap-2 py-1 hover:bg-gray-800"
                     ):
                         ui.label(f"${p.amount:,.2f}").classes(
-                            "text-sm w-28 text-right"
+                            "text-sm w-24 text-right"
                         )
-                        ui.label(payer_name).classes("text-sm w-32")
-                        ui.label(via_name).classes("text-sm w-28")
-                        ui.label(payee_name).classes("text-sm w-32")
+                        ui.label(payer_name).classes("text-sm w-24")
+                        ui.label(via_name).classes("text-sm w-20")
+                        ui.label(payee_name).classes("text-sm w-24")
+                        ui.label(c_name).classes("text-sm w-28")
+                        ui.label(c_kind).classes("text-sm w-20")
+                        ui.label(c_group).classes("text-sm w-20")
+                        ui.label(c_plate).classes("text-sm w-24")
+                        ui.label(c_policy).classes("text-sm w-24")
                         ui.label(str(p.claim_id)[:8]).classes(
-                            "text-sm w-24 text-gray-400"
+                            "text-sm w-20 text-gray-400"
                         )
                         ui.label(
                             p.created_date.strftime("%Y-%m-%d")
-                        ).classes("text-sm w-28 text-gray-400")
+                        ).classes("text-sm w-24 text-gray-400")
 
                         # NC badge
                         ui.label(nc_badge).classes(
                             f"text-xs font-bold px-2 py-0.5 rounded-full "
-                            f"{nc_color} text-white w-24 text-center"
+                            f"{nc_color} text-white w-20 text-center"
                         )
 
                         # Active badge
@@ -258,11 +329,11 @@ def register_pagos_page() -> None:
                         )
                         ui.label("Sí" if p.active else "No").classes(
                             f"text-xs font-bold px-2 py-0.5 rounded-full "
-                            f"{badge_color} text-white w-16 text-center"
+                            f"{badge_color} text-white w-14 text-center"
                         )
 
                         # ── Action buttons ────────────────────────────────
-                        with ui.row().classes("gap-1 w-44"):
+                        with ui.row().classes("gap-1 w-36"):
                             # Edit
                             with ui.dialog() as edit_dialog:
                                 _edit_payment_dialog(
@@ -293,7 +364,6 @@ def register_pagos_page() -> None:
                                     if not can:
                                         ui.notify(reason, type="warning")
                                         return
-                                    # Show confirmation with reason
                                     dlg._reason = reason
                                     dlg._is_activate = False
                                 else:
@@ -324,18 +394,6 @@ def register_pagos_page() -> None:
                                 on_click=_toggle_click,
                             ).props("flat dense round size=sm")
 
-                            # NC Management
-                            with ui.dialog() as nc_dialog:
-                                _nc_management_dialog(
-                                    nc_dialog, p, _payments_table,
-                                )
-                            ui.button(
-                                icon="receipt_long",
-                                on_click=nc_dialog.open,
-                            ).props("flat dense round size=sm")
-
-            _payments_table()
-
             # ══════════════════════════════════════════════════════════════════
             # DIALOG DEFINITIONS
             # ══════════════════════════════════════════════════════════════════
@@ -345,8 +403,6 @@ def register_pagos_page() -> None:
                 """Open the create payment dialog with fresh form."""
                 agent_options = _get_agent_options()
                 via_options = _get_via_options()
-                nc_via = container.payment_via_repo.get_nc()
-                nc_via_id = str(nc_via.payment_via_id) if nc_via else None
 
                 with ui.dialog() as dlg, ui.card():
                     ui.label("Nuevo Pago").classes("text-lg font-bold mb-2")
@@ -375,20 +431,6 @@ def register_pagos_page() -> None:
                         precision=2,
                     )
 
-                    # Conditional period field (visible only when NC)
-                    period_input = ui.select(
-                        label="Período",
-                        options=_get_period_options(),
-                        with_input=True,
-                    ).classes("w-full")
-                    period_input.set_visibility(False)
-
-                    def _on_via_change() -> None:
-                        is_nc = via_select.value == nc_via_id
-                        period_input.set_visibility(is_nc)
-
-                    via_select.on("update:model-value", _on_via_change)
-
                     # Submit / Cancel
                     with ui.row().classes("gap-2 justify-end mt-2"):
                         ui.button("Cancelar", on_click=dlg.close).props("flat")
@@ -402,7 +444,6 @@ def register_pagos_page() -> None:
                             payee_val = payee_select.value
                             via_val = via_select.value
                             amount_val = amount_input.value
-                            period_val = period_input.value
 
                             if not cid_val:
                                 missing.append("ID de Gestión")
@@ -414,8 +455,6 @@ def register_pagos_page() -> None:
                                 missing.append("Medio de Pago")
                             if not amount_val or float(amount_val) <= 0:
                                 missing.append("Monto")
-                            if via_val == nc_via_id and not period_val:
-                                missing.append("Período (NC)")
 
                             if missing:
                                 ui.notify(
@@ -432,9 +471,6 @@ def register_pagos_page() -> None:
                                     payee_id=UUID(payee_val),
                                     payment_via_id=UUID(via_val),
                                     amount=float(amount_val),
-                                    period_id=UUID(period_val)
-                                    if period_val
-                                    else None,
                                 )
                                 container.registrar_pago.execute(inp)
                                 ui.notify(
@@ -647,127 +683,8 @@ def register_pagos_page() -> None:
                             on_click=_confirm,
                         )
 
-            # ── NC Management Dialog (per row) ───────────────────────────────
-            def _nc_management_dialog(
-                dialog: ui.dialog,
-                payment,
-                refresh_fn,
-            ) -> None:
-                """Render NC management dialog for a single payment."""
-                nc = container.obtener_ncs.get_by_payment_id(payment.payment_id)
-
-                with dialog, ui.card():
-                    ui.label(
-                        "Gestión de Nota de Crédito"
-                    ).classes("text-lg font-bold mb-2")
-
-                    if nc is None:
-                        ui.label(
-                            "No hay Nota de Crédito asociada a este pago."
-                        ).classes("text-gray-400 mb-3")
-
-                        # Create NC form
-                        ui.label("Crear Nota de Crédito").classes(
-                            "text-sm font-bold mb-1"
-                        )
-
-                        period_options = _get_period_options()
-                        nc_period = ui.select(
-                            label="Período",
-                            options=period_options,
-                            with_input=True,
-                        ).classes("w-full")
-
-                        with ui.row().classes("gap-2 justify-end mt-2"):
-                            @with_audit_user
-                            async def _create_nc() -> None:
-                                period_val = nc_period.value
-                                if not period_val:
-                                    ui.notify(
-                                        "Debe seleccionar un período",
-                                        type="warning",
-                                    )
-                                    return
-                                try:
-                                    inp = RegistrarNotaCreditoInput(
-                                        payment_id=payment.payment_id,
-                                        period_id=UUID(period_val),
-                                    )
-                                    container.registrar_nc.execute(inp)
-                                    ui.notify(
-                                        "Nota de Crédito creada",
-                                        type="positive",
-                                    )
-                                    dialog.close()
-                                    refresh_fn.refresh()
-                                except ValueError as e:
-                                    ui.notify(str(e), type="negative")
-                                except Exception as e:
-                                    ui.notify(
-                                        f"Error al crear NC: {e}",
-                                        type="negative",
-                                    )
-
-                            ui.button(
-                                "Crear Nota de Crédito",
-                                on_click=_create_nc,
-                            )
-                    else:
-                        # Show NC details
-                        with ui.grid(columns=2).classes("gap-2 mb-3"):
-                            _nc_field(
-                                "ID",
-                                str(nc.nc_payment_id)[:8] + "...",
-                            )
-                            _nc_field("Entregado", "Sí" if nc.delivered else "No")
-                            _nc_field("Activo", "Sí" if nc.active else "No")
-                            _nc_field(
-                                "Creado",
-                                nc.created_date.strftime("%Y-%m-%d"),
-                            )
-
-                        with ui.row().classes("gap-2"):
-                            # Mark as delivered
-                            if not nc.delivered:
-                                @with_audit_user
-                                async def _mark_delivered(
-                                    ncid: UUID = nc.nc_payment_id,
-                                ) -> None:
-                                    try:
-                                        inp = MarcarNotaCreditoEntregadaInput(
-                                            nc_payment_id=ncid
-                                        )
-                                        result = (
-                                            container.marcar_nc_entregada.execute(
-                                                inp
-                                            )
-                                        )
-                                        if result.success:
-                                            ui.notify(
-                                                "NC marcada como entregada",
-                                                type="positive",
-                                            )
-                                        else:
-                                            ui.notify(
-                                                "No se pudo marcar como "
-                                                "entregada",
-                                                type="warning",
-                                            )
-                                        dialog.close()
-                                        refresh_fn.refresh()
-                                    except Exception as e:
-                                        ui.notify(str(e), type="negative")
-
-                                ui.button(
-                                    "Marcar Entregada",
-                                    icon="check_circle",
-                                    on_click=_mark_delivered,
-                                ).props("flat")
-
-                    with ui.row().classes("gap-2 justify-end mt-3"):
-                        ui.button("Cerrar", on_click=dialog.close).props("flat")
-
-            # Done — initial table render happens above via _payments_table()
+            # Initial render — dialog definitions must precede this call
+            _payments_table()
 
 
 # ── Shared helpers ─────────────────────────────────────────────────────────

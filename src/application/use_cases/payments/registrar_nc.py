@@ -13,7 +13,7 @@ from src.domain.ports.repositories import NcPaymentRepoPort
 
 class RegistrarNotaCreditoInput(BaseModel):
     payment_id: UUID
-    period_id: UUID
+    period_id: UUID | None = None
     delivered: bool = False
 
 
