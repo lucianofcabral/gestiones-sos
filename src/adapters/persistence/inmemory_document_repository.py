@@ -72,6 +72,12 @@ class InMemoryDocumentRepository:
     def add_document_entity(
         self, document_id: UUID, entity_type: str, entity_id: UUID
     ) -> None:
+        # Idempotent: skip if already linked
+        for entry in self._entity_store:
+            if (entry["document_id"] == document_id
+                    and entry["entity_type"] == entity_type
+                    and entry["entity_id"] == entity_id):
+                return
         self._entity_store.append(
             {
                 "document_id": document_id,
@@ -79,6 +85,19 @@ class InMemoryDocumentRepository:
                 "entity_id": entity_id,
             }
         )
+
+    def remove_document_entity(
+        self, document_id: UUID, entity_type: str, entity_id: UUID
+    ) -> None:
+        self._entity_store = [
+            e
+            for e in self._entity_store
+            if not (
+                e["document_id"] == document_id
+                and e["entity_type"] == entity_type
+                and e["entity_id"] == entity_id
+            )
+        ]
 
     def get_document_entities(self, document_id: UUID) -> list[dict[str, Any]]:
         return [e for e in self._entity_store if e["document_id"] == document_id]

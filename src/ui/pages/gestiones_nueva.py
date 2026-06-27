@@ -60,10 +60,13 @@ def nueva_gestion_dialog(on_success: Callable[[], None] | None = None) -> None:
             with ui.card().classes("w-full mb-4 p-4"):
                 ui.label("Datos del Reclamo").classes("text-lg font-bold mb-2")
 
-                group_input = ui.input(
-                    label="Grupo",
-                    autocomplete=[g.name for g in groups],
-                ).classes("w-full")
+                if kind_id not in sos_kind_ids:
+                    group_input = ui.input(
+                        label="Grupo",
+                        autocomplete=[g.name for g in groups],
+                    ).classes("w-full")
+                else:
+                    group_input = None
 
                 claimer_name_input = ui.input(label="Asegurado").classes("w-full")
                 policy_number_input = ui.input(label="Póliza").classes("w-full")
@@ -146,10 +149,6 @@ def _render_sos_card(
 
     @with_audit_user
     def _on_submit() -> None:
-        group_name = group_input.value.strip() if group_input.value else ""
-        if not group_name:
-            ui.notify("Debe ingresar un grupo", type="warning")
-            return
         if not claimer_name_input.value:
             ui.notify("El nombre del asegurado es requerido", type="warning")
             return
@@ -166,15 +165,8 @@ def _render_sos_card(
             ui.notify("Debe seleccionar un estado", type="warning")
             return
 
-        try:
-            group_id = _resolve_group_id(group_name, groups, container)
-        except Exception as e:
-            ui.notify(f"Error al crear/buscar el grupo: {e}", type="negative")
-            return
-
         input_data = RegistrarGestionSOSInput(
             claim_kind_id=UUID(kind_id),
-            group_id=group_id,
             claimer_name=claimer_name_input.value.strip(),
             policy_number=policy_number_input.value.strip(),
             plate=plate_input.value.strip(),

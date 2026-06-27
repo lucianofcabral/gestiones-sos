@@ -43,6 +43,10 @@ class SubirDocumento:
         # Dedup: check if content with same hash already exists
         existing = self._doc_repo.get_by_content(input.content)
         if existing:
+            # Link the existing document to this entity (repo is idempotent)
+            self._doc_repo.add_document_entity(
+                existing.document_id, input.entity_type, input.entity_id
+            )
             return SubirDocumentoOutput(document_id=existing.document_id)
 
         doc = Document(

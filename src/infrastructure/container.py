@@ -55,7 +55,9 @@ from src.application.use_cases.periods.eliminar_periodo import EliminarPeriodo
 from src.application.use_cases.periods.listar_periodos import ListarPeriodos
 from src.application.use_cases.documents.subir_documento import SubirDocumento
 from src.application.use_cases.documents.descargar_documento import DescargarDocumento
+from src.application.use_cases.documents.desasociar_documento import DesasociarDocumento
 from src.application.use_cases.documents.obtener_documentos import ObtenerDocumentos
+from src.application.use_cases.claims.actualizar_gestion import ActualizarGestion
 from src.application.use_cases.claims.actualizar_grupo import ActualizarGrupo
 from src.application.use_cases.claims.actualizar_grupo_de_gestion import (
     ActualizarGrupoDeGestion,
@@ -278,6 +280,9 @@ class Container:
         self._descargar_documento = DescargarDocumento(
             self._document_repo, self._storage_service
         )
+        self._desasociar_documento = DesasociarDocumento(
+            self._document_repo
+        )
         self._obtener_documentos = ObtenerDocumentos(self._document_repo)
 
         # GroupClaim use cases
@@ -296,6 +301,10 @@ class Container:
         self._obtener_claim_kinds = ObtenerClaimKinds(self._claim_kind_repo)
         self._registrar_gestion_sos = RegistrarGestionSOS(SqlAlchemyUnitOfWork(enable_audit=True))
         self._registrar_grouped_claim = RegistrarGroupedClaim(SqlAlchemyUnitOfWork(enable_audit=True))
+        self._actualizar_gestion = ActualizarGestion(
+            uow=SqlAlchemyUnitOfWork(enable_audit=True),
+            group_claim_repo=self._group_claim_repo,
+        )
 
         # Billing use cases
         self._registrar_factura = RegistrarFactura(self._billing_repo)
@@ -448,6 +457,10 @@ class Container:
         return self._descargar_documento
 
     @property
+    def desasociar_documento(self) -> DesasociarDocumento:
+        return self._desasociar_documento
+
+    @property
     def obtener_documentos(self) -> ObtenerDocumentos:
         return self._obtener_documentos
 
@@ -510,6 +523,10 @@ class Container:
     @property
     def actualizar_grupo_de_gestion(self) -> ActualizarGrupoDeGestion:
         return self._actualizar_grupo_de_gestion
+
+    @property
+    def actualizar_gestion(self) -> ActualizarGestion:
+        return self._actualizar_gestion
 
     @property
     def registrar_factura(self) -> RegistrarFactura:

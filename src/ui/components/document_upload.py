@@ -35,9 +35,9 @@ class DocumentUpload:
             ui.label("Subir Documento").classes("text-lg font-semibold mb-2")
 
             @with_audit_user
-            def handle_upload(e) -> None:
-                content = e.content.read()
-                name = e.name
+            async def handle_upload(e) -> None:
+                content = await e.file.read()
+                name = e.file.name
 
                 user_id_raw = app.storage.user.get("user_id")
                 if not user_id_raw:
@@ -50,7 +50,7 @@ class DocumentUpload:
                         SubirDocumentoInput(
                             content=content,
                             name=name,
-                            mime=e.type or "application/octet-stream",
+                            mime=e.file.content_type or "application/octet-stream",
                             type="documento",
                             entity_type=self._entity_type,
                             entity_id=self._entity_id,

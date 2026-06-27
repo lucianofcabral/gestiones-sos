@@ -192,12 +192,29 @@ class SqlAlchemyDocumentRepository:
     def add_document_entity(
         self, document_id: UUID, entity_type: str, entity_id: UUID
     ) -> None:
+        try:
+            with self._get_conn() as conn:
+                conn.execute(
+                    sa.insert(document_entities).values(
+                        document_id=document_id,
+                        entity_type=entity_type,
+                        entity_id=entity_id,
+                    )
+                )
+        except sa.exc.IntegrityError:
+            pass  # already linked — idempotent
+
+    def remove_document_entity(
+        self, document_id: UUID, entity_type: str, entity_id: UUID
+    ) -> None:
         with self._get_conn() as conn:
             conn.execute(
-                sa.insert(document_entities).values(
-                    document_id=document_id,
-                    entity_type=entity_type,
-                    entity_id=entity_id,
+                sa.delete(document_entities).where(
+                    sa.and_(
+                        document_entities.c.document_id == document_id,
+                        document_entities.c.entity_type == entity_type,
+                        document_entities.c.entity_id == entity_id,
+                    )
                 )
             )
 

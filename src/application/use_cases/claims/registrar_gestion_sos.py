@@ -13,7 +13,7 @@ from src.domain.ports.uow import UnitOfWork
 class RegistrarGestionSOSInput(BaseModel):
     # Datos de Claim (base)
     claim_kind_id: UUID
-    group_id: UUID
+    group_id: UUID | None = None
     claimer_name: str
     policy_number: str
     plate: str
@@ -60,7 +60,7 @@ class RegistrarGestionSOS:
                     f"Ya existe una gestión con el número {input_data.gestion}"
                 )
 
-            # Crear el Claim base
+            # Crear el Claim base (SOS no lleva group_id)
             claim = uow.claims.add(
                 Claim(
                     claim_kind_id=input_data.claim_kind_id,

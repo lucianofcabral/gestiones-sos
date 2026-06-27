@@ -16,3 +16,4 @@ scripts/
 # Virtual environments
 .venv
 .nicegui/
+storage/

@@ -1,5 +1,6 @@
-"""Gestiones list page — sortable table with type column and conditional display."""
+"""Gestiones list page — sortable, paginated table with compact filters."""
 
+import math
 from uuid import UUID
 
 from nicegui import ui
@@ -19,6 +20,8 @@ from src.ui.components.shell import AppShell
 from src.ui.pages.gestiones_nueva import nueva_gestion_dialog
 from src.ui.pages.sos_import import importar_gestiones_dialog
 from src.ui.services.audit_helper import with_audit_user
+
+_PAGE_SIZE = 12
 
 
 def register_gestiones_page() -> None:
@@ -49,32 +52,39 @@ def register_gestiones_page() -> None:
             # ── Filters ────────────────────────────────────────────────────────
             kind_options = _get_kind_options(container)
 
-            filter_kind = ui.select(
-                label="Tipo", options=kind_options, with_input=True, clearable=True,
-            ).classes("w-40")
-            filter_text = ui.input(
-                label="Buscar",
-                placeholder="Cliente, dominio, N° gestión, póliza...",
-            ).props("dense outlined").classes("w-64")
-            filter_solved = ui.checkbox("Resuelta")
-            filter_has_payments = ui.checkbox("Tiene pagos")
-            filter_no_payments = ui.checkbox("No tiene pagos")
-            filter_has_nc = ui.checkbox("Tiene NC")
-            filter_no_nc = ui.checkbox("No tiene NC")
+            with ui.card().classes("w-full p-3 mt-2"):
+                with ui.row().classes("items-center gap-3 w-full"):
+                    filter_kind = ui.select(
+                        label="Tipo", options=kind_options,
+                        with_input=True, clearable=True,
+                    ).classes("w-36")
+                    filter_text = ui.input(
+                        label="Buscar",
+                        placeholder="Cliente, dominio, N° gestión, póliza...",
+                    ).props("dense outlined").classes("flex-1 min-w-[200px]")
+                    toggle = ui.switch("Mostrar inactivos", value=False)
+
+                with ui.row().classes("items-center gap-4 mt-1"):
+                    filter_solved = ui.checkbox("Resuelta")
+                    filter_has_payments = ui.checkbox("Tiene pagos")
+                    filter_no_payments = ui.checkbox("No tiene pagos")
+                    filter_has_nc = ui.checkbox("Tiene NC")
+                    filter_no_nc = ui.checkbox("No tiene NC")
 
             for f in [filter_kind, filter_text, filter_solved,
                       filter_has_payments, filter_no_payments,
-                      filter_has_nc, filter_no_nc]:
-                f.on("update:model-value", lambda: _render_gestiones.refresh())
+                      filter_has_nc, filter_no_nc, toggle]:
+                f.on("update:model-value", lambda: (_reset_page(), _render_gestiones.refresh()))
 
-            # ── Active/inactive toggle ────────────────────────────────────────
-            toggle = ui.switch("Mostrar inactivos", value=False)
-
-            toggle.on("update:model-value", lambda: _render_gestiones.refresh())
-
-            # ── Sorting state ─────────────────────────────────────────────────
+            # ── Sorting & pagination state ────────────────────────────────────
             _sort_col = 0
             _sort_dir = 1
+            _page = 1
+
+            def _reset_page() -> None:
+                nonlocal _page
+                _page = 1
+
             _gest_columns = [
                 ("Tipo", "w-20", lambda g: g.claim_kind_name),
                 ("Gestión/Ref.", "w-24", lambda g: g.gestion_or_reference),
@@ -124,7 +134,7 @@ def register_gestiones_page() -> None:
 
             @ui.refreshable
             def _render_gestiones() -> None:
-                nonlocal _sort_col, _sort_dir
+                nonlocal _sort_col, _sort_dir, _page
                 show_inactive = toggle.value
                 try:
                     result = container.obtener_gestiones.execute(
@@ -194,6 +204,14 @@ def register_gestiones_page() -> None:
                     reverse=_sort_dir == -1,
                 )
 
+                # ── Paginate ──────────────────────────────────────────────
+                total = len(gestiones)
+                total_pages = max(1, math.ceil(total / _PAGE_SIZE))
+                if _page > total_pages:
+                    _page = total_pages
+                start = (_page - 1) * _PAGE_SIZE
+                page_gestiones = gestiones[start: start + _PAGE_SIZE]
+
                 # Table header
                 with ui.row().classes(
                     "items-center gap-2 py-2 border-b border-gray-600 font-bold"
@@ -209,7 +227,7 @@ def register_gestiones_page() -> None:
                         ).on("click", lambda i=i: _sort(i))
 
                 # Table rows
-                for g in gestiones:
+                for g in page_gestiones:
                     with ui.row().classes(
                         "items-center gap-2 py-1 hover:bg-gray-800 cursor-pointer"
                     ) as row:
@@ -264,6 +282,36 @@ def register_gestiones_page() -> None:
                             delete_dialog.open,
                             js_handler="(e) => { e.stopPropagation(); emit(); }",
                         ).props("flat dense round color=negative size=sm")
+
+                # ── Pagination controls ────────────────────────────────────
+                with ui.row().classes("items-center justify-center gap-4 mt-4"):
+                    with ui.row().classes("items-center gap-1"):
+                        prev_btn = ui.button(
+                            icon="chevron_left",
+                            on_click=lambda: _go_to_page(_page - 1),
+                        ).props("flat dense round")
+                        if _page <= 1:
+                            prev_btn.classes("opacity-30 pointer-events-none")
+
+                        ui.label(f"Página {_page} de {total_pages}").classes(
+                            "text-sm text-gray-300"
+                        )
+
+                        next_btn = ui.button(
+                            icon="chevron_right",
+                            on_click=lambda: _go_to_page(_page + 1),
+                        ).props("flat dense round")
+                        if _page >= total_pages:
+                            next_btn.classes("opacity-30 pointer-events-none")
+
+                    ui.label(f"({total} gestiones)").classes(
+                        "text-xs text-gray-500"
+                    )
+
+            def _go_to_page(new_page: int) -> None:
+                nonlocal _page
+                _page = new_page
+                _render_gestiones.refresh()
 
             # ── Initial render ─────────────────────────────────────────────────
             _render_gestiones()
