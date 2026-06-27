@@ -1,5 +1,6 @@
-"""New claim form — dynamic form per claim type with type selector dispatch."""
+"""New claim dialog — dynamic form per claim type with type selector dispatch."""
 
+from collections.abc import Callable
 from uuid import UUID
 
 from nicegui import ui
@@ -12,114 +13,103 @@ from src.application.use_cases.claims.registrar_grouped_claim import (
 )
 from src.domain.exceptions import GestionAlreadyExistsError
 from src.infrastructure.container import Container
-from src.ui.components.shell import AppShell
 from src.ui.services.audit_helper import with_audit_user
 
 
-def register_gestiones_nueva_page() -> None:
-    @ui.page("/gestiones/nueva")
-    def gestiones_nueva_page() -> None:
-        with AppShell():
-            container = Container.get_instance()
+def nueva_gestion_dialog(on_success: Callable[[], None] | None = None) -> None:
+    """Open a dialog to create a new claim.
 
-            # ── Load dropdown data on page init ──────────────────────────────
-            try:
-                groups = container.obtener_grupos.execute()
-                claim_kinds = container.obtener_claim_kinds.execute()
-            except Exception as e:
-                ui.notify(f"Error al cargar datos del formulario: {e}", type="negative")
+    Args:
+        on_success: Optional callback invoked after successful creation.
+    """
+    container = Container.get_instance()
+
+    # ── Load dropdown data ──────────────────────────────────────────────────
+    try:
+        groups = container.obtener_grupos.execute()
+        claim_kinds = container.obtener_claim_kinds.execute()
+    except Exception as e:
+        ui.notify(f"Error al cargar datos del formulario: {e}", type="negative")
+        return
+
+    kind_by_id: dict[str, str] = {
+        str(k.claim_kind_id): k.name for k in claim_kinds
+    }
+    sos_kind_ids: set[str] = {
+        str(k.claim_kind_id)
+        for k in claim_kinds
+        if k.name.upper() == "SOS"
+    }
+    grouped_kind_ids: set[str] = {
+        str(k.claim_kind_id)
+        for k in claim_kinds
+        if k.name.upper() == "GROUPED"
+    }
+
+    selected_kind: dict[str, str | None] = {"value": None}
+
+    with ui.dialog() as dlg, ui.card().classes("w-[600px] max-w-full"):
+        ui.label("Nueva Gestión").classes("text-2xl font-bold mb-4")
+
+        @ui.refreshable
+        def _conditional_form() -> None:
+            kind_id = selected_kind["value"]
+            if kind_id is None:
                 return
 
-            # ── Precompute kind lookups ──────────────────────────────────────
-            kind_by_id: dict[str, str] = {
-                str(k.claim_kind_id): k.name for k in claim_kinds
-            }
-            sos_kind_ids: set[str] = {
-                str(k.claim_kind_id)
-                for k in claim_kinds
-                if k.name.upper() == "SOS"
-            }
-            grouped_kind_ids: set[str] = {
-                str(k.claim_kind_id)
-                for k in claim_kinds
-                if k.name.upper() == "GROUPED"
-            }
+            with ui.card().classes("w-full mb-4 p-4"):
+                ui.label("Datos del Reclamo").classes("text-lg font-bold mb-2")
 
-            # ── Mutable state ────────────────────────────────────────────────
-            selected_kind: dict[str, str | None] = {"value": None}
+                group_input = ui.input(
+                    label="Grupo",
+                    autocomplete=[g.name for g in groups],
+                ).classes("w-full")
 
-            ui.label("Nueva Gestión").classes("text-2xl font-bold mb-4")
+                claimer_name_input = ui.input(label="Asegurado").classes("w-full")
+                policy_number_input = ui.input(label="Póliza").classes("w-full")
+                plate_input = ui.input(label="Patente").classes("w-full")
+                claimed_amount_input = ui.number(
+                    label="Monto Reclamado", value=0.0
+                ).classes("w-full")
+                comment_input = ui.textarea(label="Comentario").classes("w-full")
 
-            # ── Conditional form rendered by refreshable section ──────────────
-
-            @ui.refreshable
-            def _conditional_form() -> None:
-                kind_id = selected_kind["value"]
-                if kind_id is None:
-                    return
-
-                # ── Claim Data card (always visible when type selected) ──────
-                with ui.card().classes("w-full mb-4 p-4"):
-                    ui.label("Datos del Reclamo").classes("text-lg font-bold mb-2")
-
-                    group_input = ui.input(
-                        label="Grupo",
-                        autocomplete=[g.name for g in groups],
-                    ).classes("w-full")
-
-                    claimer_name_input = ui.input(label="Asegurado").classes("w-full")
-                    policy_number_input = ui.input(label="Póliza").classes("w-full")
-                    plate_input = ui.input(label="Patente").classes("w-full")
-                    claimed_amount_input = ui.number(
-                        label="Monto Reclamado", value=0.0
-                    ).classes("w-full")
-                    comment_input = ui.textarea(label="Comentario").classes("w-full")
-
-                # ── Type-specific card ───────────────────────────────────────
-                if kind_id in sos_kind_ids:
-                    _render_sos_card(kind_id, group_input, claimer_name_input,
+            if kind_id in sos_kind_ids:
+                _render_sos_card(kind_id, group_input, claimer_name_input,
+                                 policy_number_input, plate_input,
+                                 claimed_amount_input, comment_input,
+                                 groups, container, dlg, on_success)
+            elif kind_id in grouped_kind_ids:
+                _render_grouped_card(kind_id, group_input, claimer_name_input,
                                      policy_number_input, plate_input,
                                      claimed_amount_input, comment_input,
-                                     groups, container)
-                elif kind_id in grouped_kind_ids:
-                    _render_grouped_card(kind_id, group_input, claimer_name_input,
-                                         policy_number_input, plate_input,
-                                         claimed_amount_input, comment_input,
-                                         groups, container)
-                else:
-                    ui.label(f"Tipo de gestión '{kind_by_id.get(kind_id, '')}' "
-                             "no implementado").classes("text-gray-400 mt-4")
+                                     groups, container, dlg, on_success)
+            else:
+                ui.label(f"Tipo de gestión '{kind_by_id.get(kind_id, '')}' "
+                         "no implementado").classes("text-gray-400 mt-4")
 
-            # ── Type selector ────────────────────────────────────────────────
+        def _on_kind_change(e) -> None:
+            selected_kind["value"] = e.value
+            _conditional_form.refresh()
 
-            def _on_kind_change(e) -> None:
-                selected_kind["value"] = e.value
-                _conditional_form.refresh()
+        ui.select(
+            label="Tipo de Gestión",
+            options=kind_by_id,
+            on_change=_on_kind_change,
+        ).classes("w-full mb-4")
 
-            ui.select(
-                label="Tipo de Gestión",
-                options=kind_by_id,
-                on_change=_on_kind_change,
-            ).classes("w-full mb-4")
+        _conditional_form()
 
-            # Render initial state (type selector only — no cards)
-            _conditional_form()
+    dlg.open()
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 
 def _resolve_group_id(group_name: str, groups: list, container: Container) -> UUID:
-    """Resolve a group name to a UUID.
-
-    If a group with the given name already exists (case-insensitive), return its ID.
-    Otherwise create a new group and return the new ID.
-    """
     group_name = group_name.strip()
     for g in groups:
         if g.name.lower() == group_name.lower():
             return g.group_id
-    # No match — create the group
     group = container.registrar_grupo.execute(group_name)
     return group.group_id
 
@@ -137,8 +127,9 @@ def _render_sos_card(
     comment_input: ui.textarea,
     groups: list,
     container: Container,
+    dialog: ui.dialog,
+    on_success: Callable[[], None] | None,
 ) -> None:
-    """Render the SOS-specific data card with submit handler."""
     with ui.card().classes("w-full mb-4 p-4"):
         ui.label("Datos SOS").classes("text-lg font-bold mb-2")
 
@@ -153,11 +144,8 @@ def _render_sos_card(
         ).classes("w-full")
         itr_input = ui.number(label="ITR", value=0).classes("w-full")
 
-    # ── Submit handler ────────────────────────────────────────────────────
     @with_audit_user
     def _on_submit() -> None:
-
-        # Validate shared fields
         group_name = group_input.value.strip() if group_input.value else ""
         if not group_name:
             ui.notify("Debe ingresar un grupo", type="warning")
@@ -171,8 +159,6 @@ def _render_sos_card(
         if not plate_input.value or len(plate_input.value.strip()) < 6:
             ui.notify("La patente es requerida", type="warning")
             return
-
-        # Validate SOS-specific fields
         if not gestion_input.value or gestion_input.value <= 0:
             ui.notify("El número de gestión es requerido", type="warning")
             return
@@ -206,7 +192,9 @@ def _render_sos_card(
         try:
             container.registrar_gestion_sos.execute(input_data)
             ui.notify("Gestión registrada correctamente", type="positive")
-            ui.navigate.to("/gestiones")
+            dialog.close()
+            if on_success:
+                on_success()
         except GestionAlreadyExistsError as e:
             ui.notify(str(e), type="negative")
         except Exception as e:
@@ -229,8 +217,9 @@ def _render_grouped_card(
     comment_input: ui.textarea,
     groups: list,
     container: Container,
+    dialog: ui.dialog,
+    on_success: Callable[[], None] | None,
 ) -> None:
-    """Render the Grouped batch data card with submit handler."""
     with ui.card().classes("w-full mb-4 p-4"):
         ui.label("Datos del Lote").classes("text-lg font-bold mb-2")
 
@@ -243,11 +232,8 @@ def _render_grouped_card(
 
         notes_input = ui.textarea(label="Notas").classes("w-full")
 
-    # ── Submit handler ────────────────────────────────────────────────────
     @with_audit_user
     def _on_submit() -> None:
-
-        # Validate shared fields
         group_name = group_input.value.strip() if group_input.value else ""
         if not group_name:
             ui.notify("Debe ingresar un grupo", type="warning")
@@ -261,8 +247,6 @@ def _render_grouped_card(
         if not plate_input.value or len(plate_input.value.strip()) < 6:
             ui.notify("La patente es requerida", type="warning")
             return
-
-        # Validate Grouped-specific fields
         if not group_claim_select.value:
             ui.notify("Debe seleccionar un lote", type="warning")
             return
@@ -288,7 +272,9 @@ def _render_grouped_card(
         try:
             container.registrar_grouped_claim.execute(input_data)
             ui.notify("Gestión registrada correctamente", type="positive")
-            ui.navigate.to("/gestiones")
+            dialog.close()
+            if on_success:
+                on_success()
         except Exception as e:
             ui.notify(f"Error al registrar gestión: {e}", type="negative")
 

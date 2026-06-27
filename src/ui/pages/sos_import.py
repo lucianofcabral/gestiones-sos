@@ -1,4 +1,6 @@
-"""SOS Import page — upload Excel, preview rows, confirm import, show results."""
+"""SOS Import dialog — upload Excel, preview rows, confirm import, show results."""
+
+from collections.abc import Callable
 
 from nicegui import ui
 
@@ -6,98 +8,102 @@ from src.application.services.excel_parser import ParsedRow, parse_excel
 from src.infrastructure.container import get_container
 
 
-def register_sos_import_page() -> None:
-    @ui.page("/gestiones/importar")
-    def sos_import_page() -> None:
-        from src.ui.components.shell import AppShell
+def importar_gestiones_dialog(on_success: Callable[[], None] | None = None) -> None:
+    """Open a dialog to import SOS claims from an Excel file.
 
-        with AppShell(title="Importar Gestiones SOS"):
-            ui.label("Importar Gestiones SOS").classes("text-2xl font-bold mb-4")
+    Args:
+        on_success: Optional callback invoked after successful import.
+    """
 
-            # ── State ───────────────────────────────────────────────────────
-            parsed_rows: list[ParsedRow] = []
-            preview_area = ui.column().classes("w-full")
-            result_area = ui.column().classes("w-full")
+    with ui.dialog() as dlg, ui.card().classes("w-[800px] max-w-full"):
+        ui.label("Importar Gestiones SOS").classes("text-2xl font-bold mb-4")
 
-            # ── Upload handler ──────────────────────────────────────────────
+        parsed_rows: list[ParsedRow] = []
+        preview_area = ui.column().classes("w-full")
+        result_area = ui.column().classes("w-full")
 
-            async def handle_upload(e) -> None:
-                nonlocal parsed_rows
-                result_area.clear()
+        async def handle_upload(e) -> None:
+            nonlocal parsed_rows
+            result_area.clear()
 
-                # Validate extension
-                name = e.file.name or ""
-                if not name.lower().endswith(".xlsx"):
-                    ui.notify(
-                        "Formato no soportado. Seleccione un archivo .xlsx.",
-                        type="negative",
-                    )
-                    return
-
-                # Parse
-                content = await e.file.read()
-                try:
-                    parsed_rows = parse_excel(content)
-                except ValueError as exc:
-                    ui.notify(str(exc), type="negative")
-                    return
-                except Exception as exc:
-                    ui.notify(f"Error al leer el archivo: {exc}", type="negative")
-                    return
-
-                if not parsed_rows:
-                    ui.notify(
-                        "No se encontraron filas con datos en el archivo.",
-                        type="warning",
-                    )
-                    return
-
-                _render_preview(parsed_rows, preview_area)
-                import_btn.set_visibility(True)
+            name = e.file.name or ""
+            if not name.lower().endswith(".xlsx"):
                 ui.notify(
-                    f"Se parsearon {len(parsed_rows)} filas correctamente.",
-                    type="positive",
+                    "Formato no soportado. Seleccione un archivo .xlsx.",
+                    type="negative",
                 )
+                return
 
-            ui.upload(
-                label="Seleccionar archivo .xlsx",
-                on_upload=handle_upload,
-                auto_upload=True,
-                max_file_size=10_000_000,  # 10 MB
-            ).props("accept=.xlsx").classes("w-full max-w-md")
+            content = await e.file.read()
+            try:
+                parsed_rows = parse_excel(content)
+            except ValueError as exc:
+                ui.notify(str(exc), type="negative")
+                return
+            except Exception as exc:
+                ui.notify(f"Error al leer el archivo: {exc}", type="negative")
+                return
 
-            # ── Import button ───────────────────────────────────────────────
+            if not parsed_rows:
+                ui.notify(
+                    "No se encontraron filas con datos en el archivo.",
+                    type="warning",
+                )
+                return
 
-            async def do_import() -> None:
-                if not parsed_rows:
-                    return
+            _render_preview(parsed_rows, preview_area)
+            import_btn.set_visibility(True)
+            ui.notify(
+                f"Se parsearon {len(parsed_rows)} filas correctamente.",
+                type="positive",
+            )
 
-                import_btn.set_visibility(False)
-                import_btn.disable()
+        ui.upload(
+            label="Seleccionar archivo .xlsx",
+            on_upload=handle_upload,
+            auto_upload=True,
+            max_file_size=10_000_000,
+        ).props("accept=.xlsx").classes("w-full max-w-md")
 
-                container = get_container()
-                use_case = container.importar_gestiones_sos
-                result = use_case.execute(parsed_rows)
+        async def do_import() -> None:
+            if not parsed_rows:
+                return
 
-                _render_results(result, result_area)
-                ui.notify("Importación finalizada.", type="positive")
-
-            import_btn = ui.button(
-                "Importar",
-                icon="cloud_upload",
-                on_click=do_import,
-            ).props('color="positive"')
             import_btn.set_visibility(False)
+            import_btn.disable()
+
+            container = get_container()
+            use_case = container.importar_gestiones_sos
+            result = use_case.execute(parsed_rows)
+
+            _render_results(result, result_area)
+            ui.notify("Importación finalizada.", type="positive")
+
+            if on_success:
+                on_success()
+
+        import_btn = ui.button(
+            "Importar",
+            icon="cloud_upload",
+            on_click=do_import,
+        ).props('color="positive"')
+        import_btn.set_visibility(False)
+
+        with ui.row().classes("gap-2 justify-end mt-4"):
+            ui.button("Cerrar", on_click=dlg.close).props("flat")
+
+    dlg.open()
 
 
 # ── Rendering helpers ─────────────────────────────────────────────────────────
 
 
 def _render_preview(rows: list[ParsedRow], area: ui.column) -> None:
-    """Render a preview table of parsed rows."""
     area.clear()
     with area:
-        ui.label(f"Vista previa — {len(rows)} filas").classes("text-lg font-semibold mt-4 mb-2")
+        ui.label(f"Vista previa — {len(rows)} filas").classes(
+            "text-lg font-semibold mt-4 mb-2"
+        )
 
         columns = [
             {"name": "gestion", "label": "N° Gestión", "field": "gestion", "sortable": True},
@@ -134,15 +140,18 @@ def _render_preview(rows: list[ParsedRow], area: ui.column) -> None:
 
 
 def _render_results(result, area: ui.column) -> None:
-    """Render the import result summary."""
     area.clear()
     with area:
         with ui.card().classes("w-full p-4 mt-4"):
             ui.label("Resultado de la Importación").classes("text-xl font-bold")
 
             with ui.row().classes("gap-4 mt-2"):
-                ui.label(f"Creados: {result.created}").classes("text-green-400 font-semibold")
-                ui.label(f"Actualizados: {result.updated}").classes("text-blue-400 font-semibold")
+                ui.label(f"Creados: {result.created}").classes(
+                    "text-green-400 font-semibold"
+                )
+                ui.label(f"Actualizados: {result.updated}").classes(
+                    "text-blue-400 font-semibold"
+                )
                 ui.label(f"Errores: {len(result.errors)}").classes(
                     "text-red-400 font-semibold"
                 )
@@ -156,7 +165,7 @@ def _render_results(result, area: ui.column) -> None:
                 ]
                 rows_data = [
                     {
-                        "row": e.row_index + 2,  # +2 because 0-indexed + header
+                        "row": e.row_index + 2,
                         "gestion": str(e.gestion) if e.gestion is not None else "-",
                         "error": e.message,
                     }

@@ -76,15 +76,13 @@ class TestAuthGuard:
         assert "/" in targets
         assert "/documentos" in targets
         assert "/gestiones" in targets
-        assert "/gestiones/nueva" in targets
         assert "/pagos" in targets
         assert "/periodos" in targets
         assert "/catalogos" in targets
         assert "/grupos" in targets
         assert "/reportes" in targets
         assert "/facturas" in targets
-        assert "/gestiones/importar" in targets
-        assert len(items) == 11
+        assert len(items) == 9
 
     def test_logout_clears_user_and_navigates(self):
         """_logout clears app.storage.user and navigates to /login."""
@@ -328,14 +326,6 @@ class TestPlaceholderPages:
                 ).register_gestiones_page(),
                 "/gestiones",
                 id="gestiones",
-            ),
-            pytest.param(
-                lambda: __import__(
-                    "src.ui.pages.gestiones_nueva",
-                    fromlist=["register_gestiones_nueva_page"],
-                ).register_gestiones_nueva_page(),
-                "/gestiones/nueva",
-                id="gestiones_nueva",
             ),
             pytest.param(
                 lambda: __import__(
