@@ -95,6 +95,151 @@ def _prepare_gestiones_data(container: Container) -> list[dict]:
     return rows
 
 
+# ── Table Column Definitions ────────────────────────────────────────
+
+GESTIONES_COLUMNS = [
+    {
+        'name': 'tipo',
+        'label': 'Tipo',
+        'field': 'tipo',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 80px;'
+    },
+    {
+        'name': 'gestion',
+        'label': 'Gestión/Ref.',
+        'field': 'gestion',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 96px;'
+    },
+    {
+        'name': 'asegurado',
+        'label': 'Asegurado',
+        'field': 'asegurado',
+        'align': 'left',
+        'sortable': True,
+        'style': 'flex: 1; min-width: 170px;'
+    },
+    {
+        'name': 'poliza',
+        'label': 'Póliza',
+        'field': 'poliza',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 112px;'
+    },
+    {
+        'name': 'patente',
+        'label': 'Patente',
+        'field': 'patente',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 96px;'
+    },
+    {
+        'name': 'monto',
+        'label': 'Monto',
+        'field': 'monto',
+        'align': 'right',
+        'sortable': True,
+        'style': 'min-width: 112px;'
+    },
+    {
+        'name': 'fecha',
+        'label': 'Fecha',
+        'field': 'fecha',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 112px;'
+    },
+    {
+        'name': 'resuelto',
+        'label': 'Resuelto',
+        'field': 'resuelto',
+        'align': 'center',
+        'sortable': True,
+        'style': 'min-width: 80px;'
+    },
+    {
+        'name': 'cant_pagos',
+        'label': 'Cant. Pagos',
+        'field': 'cant_pagos',
+        'align': 'center',
+        'sortable': True,
+        'style': 'min-width: 80px;'
+    },
+    {
+        'name': 'acciones',
+        'label': 'Acciones',
+        'field': 'acciones',
+        'align': 'center',
+        'sortable': False,
+        'style': 'min-width: 160px;'
+    },
+]
+
+
+# ── Action Icons (Gestiones Row) ────────────────────────────────────
+
+def _render_gestiones_actions(claim_id: UUID, row_data: dict) -> None:
+    """
+    Render action icons for a gestiones row.
+    
+    CRITICAL: NO row-click behavior. All navigation via edit icon.
+    
+    Args:
+        claim_id: UUID of the claim
+        row_data: Dict with keys: has_group, solved, has_nc, active
+    """
+    from src.ui.components.table_helpers import ActionButton
+    
+    with ui.row().classes("gap-1 items-center no-wrap"):
+        # Edit icon (always visible) → opens edit dialog
+        ActionButton(
+            icon='edit',
+            label='Editar',
+            on_click=lambda: ui.navigate.to(f'/gestiones/{claim_id}'),
+            color='text-blue-500'
+        )
+        
+        # Grupo icon (conditional: only if claim has group_id)
+        if row_data.get('has_group'):
+            ActionButton(
+                icon='group',
+                label='Editar Grupo',
+                on_click=lambda: ui.notify("Grupo dialog - TBD", type="warning"),
+                color='text-purple-500'
+            )
+        
+        # Pagos icon (conditional: only if not solved)
+        if not row_data.get('solved'):
+            ActionButton(
+                icon='add_circle',
+                label='Registrar Pago',
+                on_click=lambda: ui.notify("Payment dialog - TBD", type="warning"),
+                color='text-green-500'
+            )
+        
+        # NC icon (conditional: only if has NC)
+        if row_data.get('has_nc'):
+            ActionButton(
+                icon='receipt',
+                label='Crédito',
+                on_click=lambda: ui.notify("NC dialog - TBD", type="warning"),
+                color='text-orange-500'
+            )
+        
+        # Delete icon (always visible)
+        ActionButton(
+            icon='delete',
+            label='Eliminar',
+            on_click=lambda: ui.notify("Delete dialog - TBD", type="warning"),
+            color='text-red-500'
+        )
+
+
 def register_gestiones_page() -> None:
     @ui.page("/gestiones")
     def gestiones_page() -> None:

@@ -20,6 +20,236 @@ from src.ui.components.shell import AppShell
 from src.ui.services.audit_helper import with_audit_user
 
 
+def _prepare_pagos_data(container: Container) -> list[dict]:
+    """
+    Prepare pagos table data by pre-computing all lookups in one pass.
+    
+    Returns list of dicts with fields:
+        id, payment_id, monto, pagador, medio, beneficiario, cliente, tipo,
+        grupo, dominio, poliza, gestion, fecha, nc, activo
+    
+    Complexity: O(N) where N = number of payments.
+    """
+    # Fetch all payments
+    all_payments = container.payment_repo.get_all()
+    if not all_payments:
+        return []
+    
+    # Pre-fetch lookups
+    all_agents = {str(a.agent_id): a.name for a in container.agent_repo.get_all()}
+    all_vias = {str(v.payment_via_id): v.name for v in container.payment_via_repo.get_all()}
+    all_claims = {c.claim_id: c for c in container.claim_repo.get_all()}
+    all_kinds = {k.claim_kind_id: k.name for k in container.claim_kind_repo.get_all()}
+    
+    # Pre-compute groups
+    all_groups = {}
+    for gc in container.group_claim_repo.get_all():
+        grp = container.obtener_grupo.execute(
+            type('Input', (), {'group_id': gc.group_claim_id})()
+        )
+        if grp:
+            all_groups[gc.claim_id] = grp.name
+    
+    # Pre-compute NC status per payment
+    nc_status = {}
+    for p in all_payments:
+        nc = container.obtener_ncs.get_by_payment_id(p.payment_id)
+        nc_status[p.payment_id] = (
+            "Entregado" if nc and nc.delivered
+            else "Pendiente" if nc
+            else "—"
+        )
+    
+    # Build rows
+    rows = []
+    for p in all_payments:
+        claim = all_claims.get(p.claim_id)
+        
+        row = {
+            'id': str(p.payment_id),
+            'payment_id': p.payment_id,
+            'monto': f'${p.amount:,.2f}',
+            'pagador': all_agents.get(str(p.payer_id), '—'),
+            'medio': all_vias.get(str(p.payment_via_id), '—'),
+            'beneficiario': all_agents.get(str(p.payee_id), '—'),
+            'cliente': claim.claimer_name if claim else '—',
+            'tipo': all_kinds.get(claim.claim_kind_id, '—') if claim else '—',
+            'grupo': all_groups.get(p.claim_id, '—'),
+            'dominio': claim.plate if claim else '—',
+            'poliza': claim.policy_number if claim else '—',
+            'gestion': str(p.claim_id),
+            'fecha': p.created_date.strftime('%d/%m/%Y'),
+            'nc': nc_status[p.payment_id],
+            'activo': p.active,
+        }
+        rows.append(row)
+    
+    return rows
+
+
+# ── Table Column Definitions ────────────────────────────────────────
+
+PAGOS_COLUMNS = [
+    {
+        'name': 'monto',
+        'label': 'Monto',
+        'field': 'monto',
+        'align': 'right',
+        'sortable': True,
+        'style': 'min-width: 112px;'
+    },
+    {
+        'name': 'pagador',
+        'label': 'Pagador',
+        'field': 'pagador',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 112px;'
+    },
+    {
+        'name': 'medio',
+        'label': 'Medio',
+        'field': 'medio',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 96px;'
+    },
+    {
+        'name': 'beneficiario',
+        'label': 'Beneficiario',
+        'field': 'beneficiario',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 112px;'
+    },
+    {
+        'name': 'cliente',
+        'label': 'Cliente',
+        'field': 'cliente',
+        'align': 'left',
+        'sortable': True,
+        'style': 'flex: 1; min-width: 170px;'
+    },
+    {
+        'name': 'tipo',
+        'label': 'Tipo',
+        'field': 'tipo',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 96px;'
+    },
+    {
+        'name': 'grupo',
+        'label': 'Grupo',
+        'field': 'grupo',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 96px;'
+    },
+    {
+        'name': 'dominio',
+        'label': 'Dominio',
+        'field': 'dominio',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 96px;'
+    },
+    {
+        'name': 'poliza',
+        'label': 'Póliza',
+        'field': 'poliza',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 112px;'
+    },
+    {
+        'name': 'gestion',
+        'label': 'Gestión',
+        'field': 'gestion',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 96px;'
+    },
+    {
+        'name': 'fecha',
+        'label': 'Fecha',
+        'field': 'fecha',
+        'align': 'left',
+        'sortable': True,
+        'style': 'min-width: 112px;'
+    },
+    {
+        'name': 'nc',
+        'label': 'NC',
+        'field': 'nc',
+        'align': 'center',
+        'sortable': True,
+        'style': 'min-width: 96px;'
+    },
+    {
+        'name': 'activo',
+        'label': 'Activo',
+        'field': 'activo',
+        'align': 'center',
+        'sortable': True,
+        'style': 'min-width: 80px;'
+    },
+    {
+        'name': 'acciones',
+        'label': 'Acciones',
+        'field': 'acciones',
+        'align': 'center',
+        'sortable': False,
+        'style': 'min-width: 160px;'
+    },
+]
+
+
+def _render_pagos_actions(payment_id: UUID, row_data: dict) -> None:
+    """
+    Render action icons for a pagos row.
+    
+    Args:
+        payment_id: UUID of the payment
+        row_data: Dict with keys: activo, nc
+    """
+    from src.ui.components.table_helpers import ActionButton
+    
+    with ui.row().classes("gap-1 items-center no-wrap"):
+        # Edit icon (always visible)
+        ActionButton(
+            icon='edit',
+            label='Editar',
+            on_click=lambda: ui.notify("Edit payment dialog - TBD", type="warning"),
+            color='text-blue-500'
+        )
+        
+        # Toggle active/inactive icon
+        if row_data.get('activo'):
+            ActionButton(
+                icon='toggle_on',
+                label='Desactivar',
+                on_click=lambda: ui.notify("Deactivate payment - TBD", type="warning"),
+                color='text-green-500'
+            )
+        else:
+            ActionButton(
+                icon='toggle_off',
+                label='Activar',
+                on_click=lambda: ui.notify("Activate payment - TBD", type="warning"),
+                color='text-gray-500'
+            )
+        
+        # View NC icon (conditional: only if NC exists)
+        if row_data.get('nc') and row_data.get('nc') != '—':
+            ActionButton(
+                icon='receipt',
+                label='Ver Crédito',
+                on_click=lambda: ui.notify("View NC dialog - TBD", type="warning"),
+                color='text-orange-500'
+            )
+
+
 def register_pagos_page() -> None:
     @ui.page("/pagos")
     def pagos_page() -> None:
