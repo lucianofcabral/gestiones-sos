@@ -205,13 +205,17 @@ PAGOS_COLUMNS = [
 ]
 
 
-def _render_pagos_actions(payment_id: UUID, row_data: dict) -> None:
+def _render_pagos_actions(payment_id: UUID, row_data: dict, 
+                          on_edit=None, on_toggle=None, on_view_nc=None) -> None:
     """
     Render action icons for a pagos row.
     
     Args:
         payment_id: UUID of the payment
         row_data: Dict with keys: activo, nc
+        on_edit: Callback for edit action
+        on_toggle: Callback for toggle action
+        on_view_nc: Callback for view NC action
     """
     from src.ui.components.table_helpers import ActionButton
     
@@ -220,32 +224,26 @@ def _render_pagos_actions(payment_id: UUID, row_data: dict) -> None:
         ActionButton(
             icon='edit',
             label='Editar',
-            on_click=lambda: ui.notify("Edit payment dialog - TBD", type="warning"),
+            on_click=on_edit if on_edit else lambda: ui.notify("Edit - not implemented", type="info"),
             color='text-blue-500'
         )
         
         # Toggle active/inactive icon
-        if row_data.get('activo'):
-            ActionButton(
-                icon='toggle_on',
-                label='Desactivar',
-                on_click=lambda: ui.notify("Deactivate payment - TBD", type="warning"),
-                color='text-green-500'
-            )
-        else:
-            ActionButton(
-                icon='toggle_off',
-                label='Activar',
-                on_click=lambda: ui.notify("Activate payment - TBD", type="warning"),
-                color='text-gray-500'
-            )
+        toggle_icon = 'toggle_on' if row_data.get('activo') else 'toggle_off'
+        toggle_color = 'text-green-500' if row_data.get('activo') else 'text-gray-500'
+        ActionButton(
+            icon=toggle_icon,
+            label='Cambiar estado',
+            on_click=on_toggle if on_toggle else lambda: ui.notify("Toggle - not implemented", type="info"),
+            color=toggle_color
+        )
         
         # View NC icon (conditional: only if NC exists)
         if row_data.get('nc') and row_data.get('nc') != '—':
             ActionButton(
                 icon='receipt',
                 label='Ver Crédito',
-                on_click=lambda: ui.notify("View NC dialog - TBD", type="warning"),
+                on_click=on_view_nc if on_view_nc else lambda: ui.notify("View NC - not implemented", type="info"),
                 color='text-orange-500'
             )
 

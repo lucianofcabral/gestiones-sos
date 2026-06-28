@@ -237,6 +237,14 @@ def _apply_filters_to_prepared_data(
 
 def _sort_prepared_data(rows: list[dict], sort_col: int, sort_dir: int) -> list[dict]:
     """Sort prepared data by column index."""
+    def parse_monto(monto_str: str) -> float:
+        """Parse monto string to float, handling '$' and ',' separators."""
+        try:
+            # Remove $ and , characters, then convert to float
+            return float(monto_str.replace('$', '').replace(',', ''))
+        except (ValueError, AttributeError):
+            return 0.0
+    
     # Define sort keys matching GESTIONES_COLUMNS order
     sort_keys = [
         lambda r: r['tipo'],           # 0: tipo
@@ -244,7 +252,7 @@ def _sort_prepared_data(rows: list[dict], sort_col: int, sort_dir: int) -> list[
         lambda r: r['asegurado'],      # 2: asegurado
         lambda r: r['poliza'],         # 3: poliza
         lambda r: r['patente'],        # 4: patente
-        lambda r: float(r['monto'].replace('$', '').replace(',', '')) if '$' in r['monto'] else 0,  # 5: monto
+        lambda r: parse_monto(r['monto']),  # 5: monto
         lambda r: r['fecha'],          # 6: fecha
         lambda r: r['resuelto'],       # 7: resuelto
         lambda r: r['cant_pagos'],     # 8: cant_pagos
@@ -269,6 +277,56 @@ def _render_gestiones_actions(claim_id: UUID, row_data: dict) -> None:
     """
     from src.ui.components.table_helpers import ActionButton
     
+    def _open_delete_dialog() -> None:
+        """Open delete confirmation dialog."""
+        with ui.dialog() as delete_dialog:
+            with delete_dialog, ui.card().classes("p-4 min-w-96"):
+                ui.label("Eliminar Gestión").classes("text-lg font-bold")
+                ui.label(f"¿Está seguro de eliminar esta gestión?")
+                
+                with ui.row().classes("gap-2 justify-end mt-4"):
+                    ui.button("Cancelar", on_click=delete_dialog.close).props("flat")
+                    ui.button(
+                        "Eliminar",
+                        on_click=lambda: _delete_gestion_impl(claim_id, delete_dialog)
+                    )
+        
+        delete_dialog.open()
+    
+    def _delete_gestion_impl(cid: UUID, dialog: ui.dialog) -> None:
+        """Execute delete operation."""
+        try:
+            # Determine claim kind and call appropriate delete use case
+            claim = container.claim_repo.get_by_id(cid)
+            if not claim:
+                ui.notify("Gestión no encontrada", type="negative")
+                dialog.close()
+                return
+            
+            # Get claim kind to determine which delete to call
+            kind = container.claim_kind_repo.get_by_id(claim.claim_kind_id)
+            kind_name = kind.name if kind else "Unknown"
+            
+            if kind_name.upper() == "SOS":
+                container.eliminar_gestion_sos.execute(
+                    EliminarGestionSOSInput(claim_id=cid)
+                )
+            else:
+                container.eliminar_grouped_claim.execute(
+                    EliminarGroupedClaimInput(claim_id=cid)
+                )
+            
+            ui.notify("Gestión eliminada", type="positive")
+            _render_gestiones.refresh()
+        except ClaimHasActivePaymentsError as e:
+            ui.notify(str(e), type="negative")
+        except ClaimNotFoundError as e:
+            ui.notify(str(e), type="negative")
+        except Exception as e:
+            ui.notify(f"Error: {e}", type="negative")
+        finally:
+            dialog.close()
+    
     with ui.row().classes("gap-1 items-center no-wrap"):
         # Edit icon (always visible) → navigate to edit page
         ActionButton(
@@ -283,7 +341,7 @@ def _render_gestiones_actions(claim_id: UUID, row_data: dict) -> None:
             ActionButton(
                 icon='group',
                 label='Editar Grupo',
-                on_click=lambda: ui.notify("Grupo dialog - TBD", type="warning"),
+                on_click=lambda: ui.notify("Grupo dialog - TBD", type="info"),
                 color='text-purple-500'
             )
         
@@ -292,7 +350,7 @@ def _render_gestiones_actions(claim_id: UUID, row_data: dict) -> None:
             ActionButton(
                 icon='add_circle',
                 label='Registrar Pago',
-                on_click=lambda: ui.notify("Payment dialog - TBD", type="warning"),
+                on_click=lambda: ui.notify("Payment dialog - TBD", type="info"),
                 color='text-green-500'
             )
         
@@ -301,7 +359,7 @@ def _render_gestiones_actions(claim_id: UUID, row_data: dict) -> None:
             ActionButton(
                 icon='receipt',
                 label='Crédito',
-                on_click=lambda: ui.notify("NC dialog - TBD", type="warning"),
+                on_click=lambda: ui.notify("NC dialog - TBD", type="info"),
                 color='text-orange-500'
             )
         
@@ -309,7 +367,7 @@ def _render_gestiones_actions(claim_id: UUID, row_data: dict) -> None:
         ActionButton(
             icon='delete',
             label='Eliminar',
-            on_click=lambda: ui.notify("Delete confirmation - TBD", type="warning"),
+            on_click=_open_delete_dialog,
             color='text-red-500'
         )
 
@@ -375,228 +433,108 @@ def register_gestiones_page() -> None:
                 nonlocal _page
                 _page = 1
 
-            _gest_columns = [
-                ("Tipo", "w-20", lambda g: g.claim_kind_name),
-                ("Gestión/Ref.", "w-24", lambda g: g.gestion_or_reference),
-                ("Asegurado", "w-36", lambda g: g.claimer_name),
-                ("Póliza", "w-28", lambda g: g.policy_number),
-                ("Patente", "w-24", lambda g: g.plate),
-                ("Monto", "w-28", lambda g: g.claimed_amount),
-                ("Fecha", "w-28", lambda g: g.created_at),
-                ("Resuelto", "w-16", lambda g: g.solved),
-                ("", "w-10", lambda g: ""),
-            ]
-
-            def _sort(col_idx: int) -> None:
-                nonlocal _sort_col, _sort_dir
-                if _sort_col == col_idx:
-                    _sort_dir *= -1
-                else:
-                    _sort_col = col_idx
-                    _sort_dir = 1
-                _render_gestiones.refresh()
-
-            # ── Delete handler ────────────────────────────────────────────────
-            @with_audit_user
-            def _delete_gestion(claim_id: str, claim_kind_name: str,
-                                dialog: ui.dialog) -> None:
-                try:
-                    if claim_kind_name.upper() == "SOS":
-                        container.eliminar_gestion_sos.execute(
-                            EliminarGestionSOSInput(claim_id=UUID(claim_id))
-                        )
-                    else:
-                        container.eliminar_grouped_claim.execute(
-                            EliminarGroupedClaimInput(claim_id=UUID(claim_id))
-                        )
-                    ui.notify("Gestión eliminada", type="positive")
-                    _render_gestiones.refresh()
-                except ClaimHasActivePaymentsError as e:
-                    ui.notify(str(e), type="negative")
-                except ClaimNotFoundError as e:
-                    ui.notify(str(e), type="negative")
-                except Exception as e:
-                    ui.notify(f"Error: {e}", type="negative")
-                finally:
-                    dialog.close()
-
             # ── Gestiones table ───────────────────────────────────────────────
 
             @ui.refreshable
             def _render_gestiones() -> None:
                 nonlocal _sort_col, _sort_dir, _page
-                show_inactive = toggle.value
+                
                 try:
-                    result = container.obtener_gestiones.execute(
-                        ObtenerGestionesInput(include_inactive=show_inactive)
+                    # Prepare all data (O(N) pre-fetch with lookups)
+                    all_prepared = _prepare_gestiones_data(container)
+                    
+                    if not all_prepared:
+                        ui.label("No hay gestiones registradas").classes(
+                            "text-gray-400 italic mt-4"
+                        )
+                        return
+                    
+                    # Apply filters from UI controls
+                    filtered = _apply_filters_to_prepared_data(
+                        all_prepared,
+                        filter_kind=filter_kind.value,
+                        filter_text=(filter_text.value or "").strip(),
+                        filter_solved=filter_solved.value,
+                        filter_has_payments=filter_has_payments.value,
+                        filter_no_payments=filter_no_payments.value,
+                        filter_has_nc=filter_has_nc.value,
+                        filter_no_nc=filter_no_nc.value,
+                        show_inactive=toggle.value,
                     )
+                    
+                    if not filtered:
+                        ui.label("No hay gestiones que coincidan con los filtros").classes(
+                            "text-gray-400 italic mt-4"
+                        )
+                        return
+                    
+                    # Apply sorting
+                    sorted_data = _sort_prepared_data(filtered, _sort_col, _sort_dir)
+                    
+                    # Calculate pagination
+                    total = len(sorted_data)
+                    total_pages = max(1, math.ceil(total / _PAGE_SIZE))
+                    if _page > total_pages:
+                        _page = total_pages
+                    page_start = (_page - 1) * _PAGE_SIZE
+                    page_end = page_start + _PAGE_SIZE
+                    page_data = sorted_data[page_start:page_end]
+                    
+                    # Render table with ui.table
+                    table = ui.table(
+                        columns=GESTIONES_COLUMNS,
+                        rows=page_data,
+                        row_key='id'
+                    ).classes('w-full')
+                    
+                    # Render action icons per row below table
+                    if page_data:
+                        ui.label("Acciones por Gestión").classes(
+                            "text-sm font-semibold mt-4 mb-2"
+                        )
+                        
+                        for row in page_data:
+                            # Apply inactive row styling if needed
+                            row_class = 'table-inactive-row' if not row['active'] else ''
+                            
+                            with ui.row().classes(
+                                f"items-center gap-2 py-1 px-2 rounded {row_class}"
+                            ):
+                                # Show claim identifier
+                                ui.label(row['asegurado']).classes(
+                                    "flex-1 text-sm truncate"
+                                )
+                                
+                                # Render action icons
+                                _render_gestiones_actions(row['claim_id'], row)
+                    
+                    # Render pagination controls
+                    with ui.row().classes("items-center justify-center gap-4 mt-4"):
+                        with ui.row().classes("items-center gap-1"):
+                            prev_btn = ui.button(
+                                icon="chevron_left",
+                                on_click=lambda: _go_to_page(_page - 1),
+                            ).props("flat dense round")
+                            if _page <= 1:
+                                prev_btn.classes("opacity-30 pointer-events-none")
+
+                            ui.label(f"Página {_page} de {total_pages}").classes(
+                                "text-sm text-gray-300"
+                            )
+
+                            next_btn = ui.button(
+                                icon="chevron_right",
+                                on_click=lambda: _go_to_page(_page + 1),
+                            ).props("flat dense round")
+                            if _page >= total_pages:
+                                next_btn.classes("opacity-30 pointer-events-none")
+
+                        ui.label(f"({total} gestiones)").classes(
+                            "text-xs text-gray-500"
+                        )
+                
                 except Exception as e:
                     ui.notify(f"Error al cargar gestiones: {e}", type="negative")
-                    return
-
-                gestiones = result.gestiones
-
-                # Pre-compute payment/NC lookups for filtering
-                all_payments = container.payment_repo.get_all()
-                claims_with_payments: set[UUID] = {p.claim_id for p in all_payments}
-                claims_with_nc: set[UUID] = set()
-                for p in all_payments:
-                    nc = container.obtener_ncs.get_by_payment_id(p.payment_id)
-                    if nc is not None:
-                        claims_with_nc.add(p.claim_id)
-
-                # ── Apply filters ─────────────────────────────────────────
-                kind_val = filter_kind.value
-                text_val = (filter_text.value or "").strip().lower()
-                solved_only = filter_solved.value
-                has_pay = filter_has_payments.value
-                no_pay = filter_no_payments.value
-                has_nc = filter_has_nc.value
-                no_nc = filter_no_nc.value
-
-                filtered = []
-                for g in gestiones:
-                    if kind_val and g.claim_kind_name != kind_val:
-                        continue
-                    if text_val:
-                        haystack = (
-                            f"{g.claimer_name} {g.plate} "
-                            f"{g.gestion_or_reference} {g.policy_number}"
-                        ).lower()
-                        if text_val not in haystack:
-                            continue
-                    if solved_only and not g.solved:
-                        continue
-                    has_p = g.claim_id in claims_with_payments
-                    if has_pay and not has_p:
-                        continue
-                    if no_pay and has_p:
-                        continue
-                    has_nc_val = g.claim_id in claims_with_nc
-                    if has_nc and not has_nc_val:
-                        continue
-                    if no_nc and has_nc_val:
-                        continue
-                    filtered.append(g)
-
-                gestiones = filtered
-
-                if not gestiones:
-                    ui.label("No se encontraron gestiones").classes(
-                        "text-gray-400 mt-4"
-                    )
-                    return
-
-                # Sort
-                gestiones = sorted(
-                    gestiones,
-                    key=_gest_columns[_sort_col][2],
-                    reverse=_sort_dir == -1,
-                )
-
-                # ── Paginate ──────────────────────────────────────────────
-                total = len(gestiones)
-                total_pages = max(1, math.ceil(total / _PAGE_SIZE))
-                if _page > total_pages:
-                    _page = total_pages
-                start = (_page - 1) * _PAGE_SIZE
-                page_gestiones = gestiones[start: start + _PAGE_SIZE]
-
-                # Table header
-                with ui.row().classes(
-                    "items-center gap-2 py-2 border-b border-gray-600 font-bold"
-                ):
-                    for i, (label, width, _) in enumerate(_gest_columns):
-                        arrow = (
-                            " ▲" if _sort_col == i and _sort_dir == 1
-                            else " ▼" if _sort_col == i
-                            else ""
-                        )
-                        ui.label(f"{label}{arrow}").classes(
-                            f"text-xs {width} cursor-pointer"
-                        ).on("click", lambda i=i: _sort(i))
-
-                # Table rows
-                for g in page_gestiones:
-                    with ui.row().classes(
-                        "items-center gap-2 py-1 hover:bg-gray-800 cursor-pointer"
-                    ) as row:
-                        row.on(
-                            "click",
-                            lambda cid=g.claim_id: ui.navigate.to(
-                                f"/gestiones/{cid}"
-                            ),
-                        )
-
-                        ui.label(g.claim_kind_name).classes("text-sm w-20")
-                        ui.label(g.gestion_or_reference).classes("text-sm w-24")
-                        ui.label(g.claimer_name).classes("text-sm w-36")
-                        ui.label(g.policy_number).classes("text-sm w-28")
-                        ui.label(g.plate).classes("text-sm w-24")
-                        ui.label(f"${g.claimed_amount:,.2f}").classes(
-                            "text-sm w-28 text-right"
-                        )
-                        ui.label(g.created_at.strftime("%Y-%m-%d")).classes(
-                            "text-sm w-28 text-gray-400"
-                        )
-                        ui.label("Sí" if g.solved else "No").classes("text-sm w-16")
-
-                        # Delete confirmation dialog
-                        with ui.dialog() as delete_dialog:
-                            with delete_dialog, ui.card():
-                                ui.label("Eliminar Gestión").classes(
-                                    "text-lg font-bold"
-                                )
-                                ui.label(
-                                    f"¿Está seguro de eliminar la gestión "
-                                    f"N° {g.gestion_or_reference}?"
-                                )
-                                with ui.row().classes("gap-2 justify-end mt-2"):
-                                    ui.button(
-                                        "Cancelar",
-                                        on_click=delete_dialog.close,
-                                    ).props("flat")
-                                    ui.button(
-                                        "Eliminar",
-                                        on_click=lambda cid=str(g.claim_id),
-                                        ckn=g.claim_kind_name,
-                                        d=delete_dialog: (
-                                            _delete_gestion(cid, ckn, d)
-                                        ),
-                                    )
-
-                        ui.button(
-                            icon="delete",
-                        ).on(
-                            "click",
-                            delete_dialog.open,
-                            js_handler="(e) => { e.stopPropagation(); emit(); }",
-                        ).props("flat dense round color=negative size=sm")
-
-                # ── Pagination controls ────────────────────────────────────
-                with ui.row().classes("items-center justify-center gap-4 mt-4"):
-                    with ui.row().classes("items-center gap-1"):
-                        prev_btn = ui.button(
-                            icon="chevron_left",
-                            on_click=lambda: _go_to_page(_page - 1),
-                        ).props("flat dense round")
-                        if _page <= 1:
-                            prev_btn.classes("opacity-30 pointer-events-none")
-
-                        ui.label(f"Página {_page} de {total_pages}").classes(
-                            "text-sm text-gray-300"
-                        )
-
-                        next_btn = ui.button(
-                            icon="chevron_right",
-                            on_click=lambda: _go_to_page(_page + 1),
-                        ).props("flat dense round")
-                        if _page >= total_pages:
-                            next_btn.classes("opacity-30 pointer-events-none")
-
-                    ui.label(f"({total} gestiones)").classes(
-                        "text-xs text-gray-500"
-                    )
 
             def _go_to_page(new_page: int) -> None:
                 nonlocal _page

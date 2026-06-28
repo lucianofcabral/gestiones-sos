@@ -231,3 +231,218 @@ class TestGestionesTableDataIntegration:
         assert len(data) == 1
         assert data[0]['solved'] is True
         assert data[0]['resuelto'] == '✓'
+
+
+class TestGestionesSortingFunction:
+    """Test sorting behavior for _sort_prepared_data (Task 2.4 - Sorting)."""
+    
+    def test_sort_by_monto_descending(self):
+        """Given multiple rows, sort by monto descending works correctly."""
+        from src.ui.pages.gestiones import _sort_prepared_data
+        
+        # Create test rows with different montos
+        rows = [
+            {'monto': '1,000.00', 'tipo': 'SOS'},
+            {'monto': '500.00', 'tipo': 'SOS'},
+            {'monto': '2,500.00', 'tipo': 'SOS'},
+        ]
+        
+        # Sort by monto (column index 5) descending (direction -1)
+        sorted_rows = _sort_prepared_data(rows, sort_col=5, sort_dir=-1)
+        
+        # Extract montos as floats for comparison
+        montos = [float(r['monto'].replace(',', '')) for r in sorted_rows]
+        assert montos == [2500.00, 1000.00, 500.00]
+    
+    def test_sort_by_asegurado_ascending(self):
+        """Given multiple rows, sort by asegurado ascending works correctly."""
+        from src.ui.pages.gestiones import _sort_prepared_data
+        
+        rows = [
+            {'asegurado': 'Zara Limited'},
+            {'asegurado': 'Alice Corp'},
+            {'asegurado': 'Bob Inc'},
+        ]
+        
+        # Sort by asegurado (column index 2) ascending (direction 1)
+        sorted_rows = _sort_prepared_data(rows, sort_col=2, sort_dir=1)
+        
+        names = [r['asegurado'] for r in sorted_rows]
+        assert names == ['Alice Corp', 'Bob Inc', 'Zara Limited']
+    
+    def test_sort_acciones_column_returns_unchanged(self):
+        """Actions column (index 9) is not sortable; rows unchanged."""
+        from src.ui.pages.gestiones import _sort_prepared_data
+        
+        rows = [
+            {'asegurado': 'Zara', 'acciones': 'edit'},
+            {'asegurado': 'Alice', 'acciones': 'edit'},
+        ]
+        original_order = [r['asegurado'] for r in rows]
+        
+        # Try to sort by acciones (column 9)
+        sorted_rows = _sort_prepared_data(rows, sort_col=9, sort_dir=1)
+        
+        # Should be unchanged (returns original order)
+        result_order = [r['asegurado'] for r in sorted_rows]
+        assert result_order == original_order
+
+
+class TestGestionesFilteringFunction:
+    """Test filtering behavior for _apply_filters_to_prepared_data (Task 2.5 - Filtering)."""
+    
+    def test_filter_active_only(self):
+        """Given mixed active/inactive rows, filter_active=True returns only active."""
+        from src.ui.pages.gestiones import _apply_filters_to_prepared_data
+        
+        rows = [
+            {'active': True, 'tipo': 'SOS', 'gestion': '123', 'asegurado': 'A', 
+             'poliza': '', 'patente': '', 'solved': False},
+            {'active': False, 'tipo': 'SOS', 'gestion': '124', 'asegurado': 'B',
+             'poliza': '', 'patente': '', 'solved': False},
+        ]
+        
+        filtered = _apply_filters_to_prepared_data(
+            rows,
+            filter_kind=None,
+            filter_text=None,
+            filter_solved=False,
+            filter_has_payments=False,
+            filter_no_payments=False,
+            filter_has_nc=False,
+            filter_no_nc=False,
+            show_inactive=False  # Only show active
+        )
+        
+        assert len(filtered) == 1
+        assert filtered[0]['active'] is True
+    
+    def test_filter_by_claim_kind(self):
+        """Given kind filter, only matching kind rows returned."""
+        from src.ui.pages.gestiones import _apply_filters_to_prepared_data
+        
+        rows = [
+            {'tipo': 'SOS', 'active': True, 'gestion': '123', 'asegurado': 'A',
+             'poliza': '', 'patente': '', 'solved': False},
+            {'tipo': 'Grouped', 'active': True, 'gestion': '124', 'asegurado': 'B',
+             'poliza': '', 'patente': '', 'solved': False},
+        ]
+        
+        filtered = _apply_filters_to_prepared_data(
+            rows,
+            filter_kind='SOS',
+            filter_text=None,
+            filter_solved=False,
+            filter_has_payments=False,
+            filter_no_payments=False,
+            filter_has_nc=False,
+            filter_no_nc=False,
+            show_inactive=True
+        )
+        
+        assert len(filtered) == 1
+        assert filtered[0]['tipo'] == 'SOS'
+    
+    def test_filter_by_text_search(self):
+        """Given text filter, only rows with matching text returned."""
+        from src.ui.pages.gestiones import _apply_filters_to_prepared_data
+        
+        rows = [
+            {'asegurado': 'John Smith', 'poliza': 'POL-001', 'patente': 'ABC123',
+             'gestion': '999', 'tipo': 'SOS', 'active': True, 'solved': False},
+            {'asegurado': 'Jane Doe', 'poliza': 'POL-002', 'patente': 'XYZ789',
+             'gestion': '888', 'tipo': 'SOS', 'active': True, 'solved': False},
+        ]
+        
+        filtered = _apply_filters_to_prepared_data(
+            rows,
+            filter_kind=None,
+            filter_text='John',
+            filter_solved=False,
+            filter_has_payments=False,
+            filter_no_payments=False,
+            filter_has_nc=False,
+            filter_no_nc=False,
+            show_inactive=True
+        )
+        
+        assert len(filtered) == 1
+        assert 'John' in filtered[0]['asegurado']
+    
+    def test_filter_by_solved_status(self):
+        """Given solved filter, only solved rows returned."""
+        from src.ui.pages.gestiones import _apply_filters_to_prepared_data
+        
+        rows = [
+            {'solved': True, 'tipo': 'SOS', 'active': True, 'gestion': '123',
+             'asegurado': 'A', 'poliza': '', 'patente': ''},
+            {'solved': False, 'tipo': 'SOS', 'active': True, 'gestion': '124',
+             'asegurado': 'B', 'poliza': '', 'patente': ''},
+        ]
+        
+        filtered = _apply_filters_to_prepared_data(
+            rows,
+            filter_kind=None,
+            filter_text=None,
+            filter_solved=True,  # Only solved
+            filter_has_payments=False,
+            filter_no_payments=False,
+            filter_has_nc=False,
+            filter_no_nc=False,
+            show_inactive=True
+        )
+        
+        assert len(filtered) == 1
+        assert filtered[0]['solved'] is True
+    
+    def test_filter_by_has_payments(self):
+        """Given has_payments filter, only rows with payments returned."""
+        from src.ui.pages.gestiones import _apply_filters_to_prepared_data
+        
+        rows = [
+            {'cant_pagos': 1, 'tipo': 'SOS', 'active': True, 'gestion': '123',
+             'asegurado': 'A', 'poliza': '', 'patente': '', 'solved': False},
+            {'cant_pagos': 0, 'tipo': 'SOS', 'active': True, 'gestion': '124',
+             'asegurado': 'B', 'poliza': '', 'patente': '', 'solved': False},
+        ]
+        
+        filtered = _apply_filters_to_prepared_data(
+            rows,
+            filter_kind=None,
+            filter_text=None,
+            filter_solved=False,
+            filter_has_payments=True,  # Only with payments
+            filter_no_payments=False,
+            filter_has_nc=False,
+            filter_no_nc=False,
+            show_inactive=True
+        )
+        
+        assert len(filtered) == 1
+        assert filtered[0]['cant_pagos'] > 0
+    
+    def test_filter_by_has_nc(self):
+        """Given has_nc filter, only rows with NC returned."""
+        from src.ui.pages.gestiones import _apply_filters_to_prepared_data
+        
+        rows = [
+            {'has_nc': True, 'tipo': 'SOS', 'active': True, 'gestion': '123',
+             'asegurado': 'A', 'poliza': '', 'patente': '', 'solved': False},
+            {'has_nc': False, 'tipo': 'SOS', 'active': True, 'gestion': '124',
+             'asegurado': 'B', 'poliza': '', 'patente': '', 'solved': False},
+        ]
+        
+        filtered = _apply_filters_to_prepared_data(
+            rows,
+            filter_kind=None,
+            filter_text=None,
+            filter_solved=False,
+            filter_has_payments=False,
+            filter_no_payments=False,
+            filter_has_nc=True,  # Only with NC
+            filter_no_nc=False,
+            show_inactive=True
+        )
+        
+        assert len(filtered) == 1
+        assert filtered[0]['has_nc'] is True
