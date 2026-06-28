@@ -183,6 +183,80 @@ GESTIONES_COLUMNS = [
 
 # ── Action Icons (Gestiones Row) ────────────────────────────────────
 
+def _apply_filters_to_prepared_data(
+    rows: list[dict],
+    filter_kind: str | None,
+    filter_text: str | None,
+    filter_solved: bool,
+    filter_has_payments: bool,
+    filter_no_payments: bool,
+    filter_has_nc: bool,
+    filter_no_nc: bool,
+    show_inactive: bool,
+) -> list[dict]:
+    """Apply all filters to prepared gestiones data."""
+    result = rows
+    
+    # Filter by claim kind
+    if filter_kind:
+        result = [r for r in result if r['tipo'] == filter_kind]
+    
+    # Filter by text (policy, customer, plate, gestion)
+    if filter_text:
+        q = filter_text.lower()
+        result = [
+            r for r in result
+            if q in r['poliza'].lower()
+            or q in r['asegurado'].lower()
+            or q in r['patente'].lower()
+            or q in r['gestion'].lower()
+        ]
+    
+    # Filter by solved status
+    if filter_solved:
+        result = [r for r in result if r['solved']]
+    
+    # Filter by payment status
+    if filter_has_payments:
+        result = [r for r in result if r['cant_pagos'] > 0]
+    if filter_no_payments:
+        result = [r for r in result if r['cant_pagos'] == 0]
+    
+    # Filter by NC status
+    if filter_has_nc:
+        result = [r for r in result if r['has_nc']]
+    if filter_no_nc:
+        result = [r for r in result if not r['has_nc']]
+    
+    # Filter by active status
+    if not show_inactive:
+        result = [r for r in result if r['active']]
+    
+    return result
+
+
+def _sort_prepared_data(rows: list[dict], sort_col: int, sort_dir: int) -> list[dict]:
+    """Sort prepared data by column index."""
+    # Define sort keys matching GESTIONES_COLUMNS order
+    sort_keys = [
+        lambda r: r['tipo'],           # 0: tipo
+        lambda r: str(r['gestion']),   # 1: gestion
+        lambda r: r['asegurado'],      # 2: asegurado
+        lambda r: r['poliza'],         # 3: poliza
+        lambda r: r['patente'],        # 4: patente
+        lambda r: float(r['monto'].replace('$', '').replace(',', '')) if '$' in r['monto'] else 0,  # 5: monto
+        lambda r: r['fecha'],          # 6: fecha
+        lambda r: r['resuelto'],       # 7: resuelto
+        lambda r: r['cant_pagos'],     # 8: cant_pagos
+        lambda r: '',                  # 9: acciones (not sortable)
+    ]
+    
+    if sort_col >= len(sort_keys):
+        return rows
+    
+    return sorted(rows, key=sort_keys[sort_col], reverse=sort_dir == -1)
+
+
 def _render_gestiones_actions(claim_id: UUID, row_data: dict) -> None:
     """
     Render action icons for a gestiones row.
@@ -196,11 +270,11 @@ def _render_gestiones_actions(claim_id: UUID, row_data: dict) -> None:
     from src.ui.components.table_helpers import ActionButton
     
     with ui.row().classes("gap-1 items-center no-wrap"):
-        # Edit icon (always visible) → opens edit dialog
+        # Edit icon (always visible) → navigate to edit page
         ActionButton(
             icon='edit',
             label='Editar',
-            on_click=lambda: ui.navigate.to(f'/gestiones/{claim_id}'),
+            on_click=lambda cid=claim_id: ui.navigate.to(f'/gestiones/{cid}'),
             color='text-blue-500'
         )
         
@@ -235,7 +309,7 @@ def _render_gestiones_actions(claim_id: UUID, row_data: dict) -> None:
         ActionButton(
             icon='delete',
             label='Eliminar',
-            on_click=lambda: ui.notify("Delete dialog - TBD", type="warning"),
+            on_click=lambda: ui.notify("Delete confirmation - TBD", type="warning"),
             color='text-red-500'
         )
 
