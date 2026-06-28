@@ -1,0 +1,26 @@
+/* ── Table Inactive Row Styling ────────────────────────────────────── */
+
+.table-inactive-row {
+    border-left: 2px solid rgb(249, 115, 22); /* orange-400 */
+    opacity: 0.55;
+}
+
+/* ── Quasar Table Styling (q-table compatibility) ────────────────── */
+
+.q-table {
+    background-color: transparent;
+}
+
+.q-table__card {
+    background-color: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.q-table__card thead tr,
+.q-table__card tbody td {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.q-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
