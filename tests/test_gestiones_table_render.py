@@ -141,7 +141,7 @@ class TestGestionesActionsRender:
 
 
 class TestGestionesTableDataIntegration:
-    """Test data preparation and filtering (Tasks 2.4-2.5)."""
+    """Test data preparation and filtering (Tasks 2.4-2.7)."""
     
     def test_prepare_gestiones_data_returns_correct_structure(self, mock_container):
         """_prepare_gestiones_data returns dicts with all required fields."""
@@ -176,3 +176,58 @@ class TestGestionesTableDataIntegration:
             for field in column_fields:
                 assert field in row, \
                     f"Prepared data missing field '{field}' from GESTIONES_COLUMNS"
+    
+    def test_filtering_by_active_status(self, mock_container):
+        """Data can be filtered by active/inactive status."""
+        from src.ui.pages.gestiones import _prepare_gestiones_data
+        from src.domain.models.entities import Claim, ClaimKind
+        from uuid import uuid4
+        from datetime import datetime
+        
+        # Add test claim
+        kind = ClaimKind(claim_kind_id=uuid4(), name='SOS')
+        mock_container.claim_kind_repo.add(kind)
+        
+        claim_id = uuid4()
+        claim = Claim(
+            claim_id=claim_id,
+            claimer_name='John Doe',
+            policy_number='POL123',
+            plate='ABC1234',
+            claimed_amount=1000.00,
+            claim_kind_id=kind.claim_kind_id,
+            created_at=datetime.now(),
+            active=False  # Inactive claim
+        )
+        mock_container.claim_repo.add(claim)
+        
+        data = _prepare_gestiones_data(mock_container)
+        assert len(data) == 1
+        assert data[0]['active'] is False
+    
+    def test_data_includes_solved_status(self, mock_container):
+        """Prepared data includes solved status."""
+        from src.ui.pages.gestiones import _prepare_gestiones_data
+        from src.domain.models.entities import Claim, ClaimKind
+        from uuid import uuid4
+        from datetime import datetime
+        
+        kind = ClaimKind(claim_kind_id=uuid4(), name='SOS')
+        mock_container.claim_kind_repo.add(kind)
+        
+        claim = Claim(
+            claim_id=uuid4(),
+            claimer_name='Test',
+            policy_number='POL123',
+            plate='ABC1234',
+            claimed_amount=100.0,
+            claim_kind_id=kind.claim_kind_id,
+            created_at=datetime.now(),
+            solved=True
+        )
+        mock_container.claim_repo.add(claim)
+        
+        data = _prepare_gestiones_data(mock_container)
+        assert len(data) == 1
+        assert data[0]['solved'] is True
+        assert data[0]['resuelto'] == '✓'
