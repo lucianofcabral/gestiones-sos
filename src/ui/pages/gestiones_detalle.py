@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from nicegui import ui
+from nicegui import app, ui
 
 from src.application.use_cases.claims.actualizar_gestion import (
     ActualizarGestionInput,
@@ -35,15 +35,15 @@ def register_gestiones_detalle_page() -> None:
                 return
 
             # ── Back button (outside refreshable — always visible) ───────────
+            back_url = app.storage.user.pop("return_to", "/gestiones")
             ui.button(
-                "← Volver a Gestiones",
-                on_click=lambda: ui.navigate.to("/gestiones"),
+                f"← Volver{' a Documentos' if back_url != '/gestiones' else ' a Gestiones'}",
+                on_click=lambda: ui.navigate.to(back_url),
             ).props("flat color=white")
 
             # ── Group options are stable, load once ──────────────────────────
             group_options = {
-                str(g.group_id): g.name
-                for g in container.obtener_grupos.execute()
+                str(g.group_id): g.name for g in container.obtener_grupos.execute()
             }
 
             # ── Refreshable claim card ─────────────────────────────────────
@@ -68,8 +68,11 @@ def register_gestiones_detalle_page() -> None:
                 reference = (
                     detalle.grouped_data.external_reference
                     if is_grouped and detalle.grouped_data
-                    else (detalle.sos_records[0].gestion if detalle.sos_records
-                          else str(detalle.claim_id)[:8])
+                    else (
+                        detalle.sos_records[0].gestion
+                        if detalle.sos_records
+                        else str(detalle.claim_id)[:8]
+                    )
                 )
                 reference_label = "Ref. Lote" if is_grouped else "Gestión N°"
 
@@ -86,7 +89,9 @@ def register_gestiones_detalle_page() -> None:
                     with ui.grid(columns=2).classes("gap-x-4 gap-y-1"):
                         with ui.column().classes("gap-0"):
                             ui.label("Asegurado").classes("text-xs text-gray-400")
-                            name_input = ui.input(value=detalle.claimer_name).classes("w-full")
+                            name_input = ui.input(value=detalle.claimer_name).classes(
+                                "w-full"
+                            )
 
                         with ui.column().classes("gap-0"):
                             ui.label(reference_label).classes("text-xs text-gray-400")
@@ -94,21 +99,28 @@ def register_gestiones_detalle_page() -> None:
 
                         with ui.column().classes("gap-0"):
                             ui.label("Póliza").classes("text-xs text-gray-400")
-                            policy_input = ui.input(value=detalle.policy_number).classes("w-full")
+                            policy_input = ui.input(
+                                value=detalle.policy_number
+                            ).classes("w-full")
 
                         with ui.column().classes("gap-0"):
                             ui.label("Patente").classes("text-xs text-gray-400")
-                            plate_input = ui.input(value=detalle.plate).classes("w-full")
+                            plate_input = ui.input(value=detalle.plate).classes(
+                                "w-full"
+                            )
 
                         with ui.column().classes("gap-0"):
                             ui.label("Monto").classes("text-xs text-gray-400")
                             amount_input = ui.number(
-                                value=detalle.claimed_amount, precision=2,
+                                value=detalle.claimed_amount,
+                                precision=2,
                             ).classes("w-full")
 
                         with ui.column().classes("gap-0"):
                             ui.label("Grupo").classes("text-xs text-gray-400")
-                            cur_group = str(detalle.group_id) if detalle.group_id else None
+                            cur_group = (
+                                str(detalle.group_id) if detalle.group_id else None
+                            )
                             group_sel = ui.select(
                                 options=group_options,
                                 value=cur_group,
@@ -118,13 +130,15 @@ def register_gestiones_detalle_page() -> None:
 
                         with ui.column().classes("gap-0"):
                             ui.label("Tipo").classes("text-xs text-gray-400")
-                            ui.label(detalle.claim_kind_name).classes("text-sm text-gray-300")
+                            ui.label(detalle.claim_kind_name).classes(
+                                "text-sm text-gray-300"
+                            )
 
                         with ui.column().classes("gap-0"):
                             ui.label("Fecha").classes("text-xs text-gray-400")
-                            ui.label(detalle.created_at.strftime("%Y-%m-%d %H:%M")).classes(
-                                "text-sm text-gray-300"
-                            )
+                            ui.label(
+                                detalle.created_at.strftime("%Y-%m-%d %H:%M")
+                            ).classes("text-sm text-gray-300")
 
                         with ui.row().classes("gap-6"):
                             with ui.column().classes("gap-0"):
@@ -136,9 +150,13 @@ def register_gestiones_detalle_page() -> None:
 
                     # ── Comment — full width ─────────────────────────────
                     ui.label("Comentario").classes("text-xs text-gray-400 mt-1")
-                    comment_input = ui.textarea(
-                        value=detalle.comment or "",
-                    ).classes("w-full").props("rows=1")
+                    comment_input = (
+                        ui.textarea(
+                            value=detalle.comment or "",
+                        )
+                        .classes("w-full")
+                        .props("rows=1")
+                    )
 
                     with ui.row().classes("justify-end mt-2 gap-2"):
                         ui.button(
@@ -152,7 +170,9 @@ def register_gestiones_detalle_page() -> None:
                                 container.actualizar_gestion.execute(
                                     ActualizarGestionInput(
                                         claim_id=claim_id,
-                                        group_id=UUID(group_sel.value) if group_sel.value else None,
+                                        group_id=UUID(group_sel.value)
+                                        if group_sel.value
+                                        else None,
                                         claimer_name=name_input.value.strip(),
                                         policy_number=policy_input.value.strip(),
                                         plate=plate_input.value.strip(),
@@ -177,7 +197,6 @@ def register_gestiones_detalle_page() -> None:
 
             # ── Two-column: banner (left) | documents + payments (right) ──
             with ui.row().classes("w-full gap-4 items-start"):
-
                 # ── Left: claim card ──────────────────────────────────────
                 with ui.column().classes("flex-[3] min-w-0"):
                     _render_claim_data()
@@ -196,11 +215,21 @@ def _render_payments_section(container: Container, claim_id: UUID) -> None:
 
     # Pre-load option lists once (stable data)
     agent_options = {str(a.agent_id): a.name for a in container.agent_repo.get_all()}
-    via_options = {str(v.payment_via_id): v.name for v in container.payment_via_repo.get_all()}
+    via_options = {
+        str(v.payment_via_id): v.name for v in container.payment_via_repo.get_all()
+    }
     nc_via = container.payment_via_repo.get_nc()
     nc_via_id = str(nc_via.payment_via_id) if nc_via else None
-    sos_id = str(container.agent_repo.get_sos().agent_id) if container.agent_repo.get_sos() else None
-    sm_id = str(container.agent_repo.get_sm().agent_id) if container.agent_repo.get_sm() else None
+    sos_id = (
+        str(container.agent_repo.get_sos().agent_id)
+        if container.agent_repo.get_sos()
+        else None
+    )
+    sm_id = (
+        str(container.agent_repo.get_sm().agent_id)
+        if container.agent_repo.get_sm()
+        else None
+    )
 
     def _handle_inactivate(payment_id: UUID) -> None:
         try:
@@ -220,8 +249,17 @@ def _render_payments_section(container: Container, claim_id: UUID) -> None:
             pmt = container.obtener_pagos.get_by_id(payment_id)
         else:
             pmt = None
-        _pago_dialog(container, claim_id, pmt, _refresh_pagos,
-                     agent_options, via_options, nc_via_id, sos_id, sm_id)
+        _pago_dialog(
+            container,
+            claim_id,
+            pmt,
+            _refresh_pagos,
+            agent_options,
+            via_options,
+            nc_via_id,
+            sos_id,
+            sm_id,
+        )
 
     @ui.refreshable
     def _refresh_pagos() -> None:
@@ -241,7 +279,9 @@ def _render_payments_section(container: Container, claim_id: UUID) -> None:
             )
             return
 
-        with ui.row().classes("items-center gap-2 py-1 border-b border-gray-600 font-bold"):
+        with ui.row().classes(
+            "items-center gap-2 py-1 border-b border-gray-600 font-bold"
+        ):
             for label, width in [
                 ("Monto", "w-28"),
                 ("Fecha", "w-28"),
@@ -271,7 +311,9 @@ def _render_payments_section(container: Container, claim_id: UUID) -> None:
                     ui.button(
                         icon="toggle_off" if pmt.active else "toggle_on",
                         on_click=lambda pid=pmt.payment_id: _handle_inactivate(pid),
-                    ).props(f"flat dense round size=sm color={'grey' if not pmt.active else 'orange-7'}")
+                    ).props(
+                        f"flat dense round size=sm color={'grey' if not pmt.active else 'orange-7'}"
+                    )
 
     _refresh_pagos()
 
@@ -291,25 +333,31 @@ def _pago_dialog(
     is_edit = payment is not None
 
     with ui.dialog() as dlg, ui.card().classes("min-w-[400px]"):
-        ui.label("Editar Pago" if is_edit else "Nuevo Pago").classes("text-lg font-bold mb-2")
+        ui.label("Editar Pago" if is_edit else "Nuevo Pago").classes(
+            "text-lg font-bold mb-2"
+        )
 
         payer_sel = ui.select(
-            label="Pagador", options=agent_options,
+            label="Pagador",
+            options=agent_options,
             value=str(payment.payer_id) if payment else None,
             with_input=True,
         ).classes("w-full")
         payee_sel = ui.select(
-            label="Beneficiario", options=agent_options,
+            label="Beneficiario",
+            options=agent_options,
             value=str(payment.payee_id) if payment else None,
             with_input=True,
         ).classes("w-full")
         via_sel = ui.select(
-            label="Medio de Pago", options=via_options,
+            label="Medio de Pago",
+            options=via_options,
             value=str(payment.payment_via_id) if payment else None,
             with_input=True,
         ).classes("w-full")
         amount_input = ui.number(
-            label="Monto", precision=2,
+            label="Monto",
+            precision=2,
             value=payment.amount if payment else None,
         ).classes("w-full")
 
@@ -352,19 +400,25 @@ def _pago_dialog(
                     missing.append("Monto")
 
                 if missing:
-                    ui.notify("Campos requeridos: " + ", ".join(missing), type="warning")
+                    ui.notify(
+                        "Campos requeridos: " + ", ".join(missing), type="warning"
+                    )
                     return
 
                 try:
                     if is_edit:
                         container.actualizar_pago.execute(
-                            type("Inp", (), {
-                                "payment_id": payment.payment_id,
-                                "payer_id": UUID(payer_val),
-                                "payee_id": UUID(payee_val),
-                                "payment_via_id": UUID(via_val),
-                                "amount": float(amount_val),
-                            })()
+                            type(
+                                "Inp",
+                                (),
+                                {
+                                    "payment_id": payment.payment_id,
+                                    "payer_id": UUID(payer_val),
+                                    "payee_id": UUID(payee_val),
+                                    "payment_via_id": UUID(via_val),
+                                    "amount": float(amount_val),
+                                },
+                            )()
                         )
                         ui.notify("Pago actualizado", type="positive")
                     else:
@@ -409,9 +463,7 @@ def _render_documents_section(claim_id: UUID) -> None:
 
     def _desasociar_doc(doc_id: UUID) -> None:
         try:
-            container.desasociar_documento.execute(
-                doc_id, "claim", claim_id
-            )
+            container.desasociar_documento.execute(doc_id, "claim", claim_id)
             ui.notify("Documento desasociado", type="positive")
             _refresh_docs.refresh()
         except Exception as e:
@@ -436,9 +488,7 @@ def _render_documents_section(claim_id: UUID) -> None:
             ui.label("").classes("w-24")
 
         for doc in sorted(docs, key=lambda d: d.created_at, reverse=True):
-            with ui.row().classes(
-                "items-center gap-2 py-1 hover:bg-gray-800"
-            ):
+            with ui.row().classes("items-center gap-2 py-1 hover:bg-gray-800"):
                 ui.label(doc.name).classes("text-sm w-44 truncate")
                 ui.label(doc.type).classes("text-sm w-20")
                 ui.label(_format_size(doc.size)).classes(
