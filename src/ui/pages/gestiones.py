@@ -24,6 +24,77 @@ from src.ui.services.audit_helper import with_audit_user
 _PAGE_SIZE = 12
 
 
+def _prepare_gestiones_data(container: Container) -> list[dict]:
+    """
+    Prepare gestiones table data by pre-computing all lookups in one pass.
+    
+    Returns list of dicts with fields:
+        id, claim_id, tipo, gestion, asegurado, poliza, patente, monto,
+        fecha, resuelto, cant_pagos, active, has_group, has_nc, solved
+    
+    Complexity: O(N) where N = number of claims (one pass per repository).
+    """
+    # Fetch all claims
+    all_claims = container.claim_repo.get_all()
+    if not all_claims:
+        return []
+    
+    # Pre-fetch all claim kinds
+    all_kinds = {k.claim_kind_id: k.name for k in container.claim_kind_repo.get_all()}
+    
+    # Pre-compute SOS data (gestion numbers)
+    sos_map = {}
+    for sos in container.sos_claim_repo.get_all():
+        sos_map[sos.claim_id] = sos
+    
+    # Pre-compute payment counts and NC flags (avoid N+1)
+    payment_counts = {}
+    has_nc_map = {}
+    
+    all_payments = container.payment_repo.get_all()
+    for claim in all_claims:
+        claim_payments = [p for p in all_payments if p.claim_id == claim.claim_id]
+        payment_counts[claim.claim_id] = len(claim_payments)
+        
+        # Check if any payment has an associated NC
+        has_nc = False
+        for payment in claim_payments:
+            try:
+                nc = container.obtener_ncs.get_by_payment_id(payment.payment_id)
+                if nc is not None:
+                    has_nc = True
+                    break
+            except Exception:
+                pass
+        has_nc_map[claim.claim_id] = has_nc
+    
+    # Build rows
+    rows = []
+    for claim in all_claims:
+        sos = sos_map.get(claim.claim_id)
+        
+        row = {
+            'id': str(claim.claim_id),
+            'claim_id': claim.claim_id,
+            'tipo': all_kinds.get(claim.claim_kind_id, '—'),
+            'gestion': sos.gestion if sos else '—',
+            'asegurado': claim.claimer_name,
+            'poliza': claim.policy_number,
+            'patente': claim.plate,
+            'monto': f'{claim.claimed_amount:,.2f}',
+            'fecha': claim.created_at.strftime('%d/%m/%Y'),
+            'resuelto': '✓' if claim.solved else '—',
+            'cant_pagos': payment_counts[claim.claim_id],
+            'active': claim.active,
+            'has_group': claim.group_id is not None,
+            'has_nc': has_nc_map[claim.claim_id],
+            'solved': claim.solved,
+        }
+        rows.append(row)
+    
+    return rows
+
+
 def register_gestiones_page() -> None:
     @ui.page("/gestiones")
     def gestiones_page() -> None:

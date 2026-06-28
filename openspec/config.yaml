@@ -1,0 +1,116 @@
+---
+# SDD Configuration — gestiones-sos
+# Generated: 2026-06-28
+# Persistence: hybrid (Engram + openspec)
+
+project:
+  name: gestiones-sos-hex
+  description: Claims management application for insurance company SOS services
+  repository: https://github.com/your-org/gestiones-sos
+  language: Python
+  python_version: ">=3.13"
+
+architecture:
+  pattern: hexagonal
+  summary: |
+    Clean hexagonal (ports & adapters) architecture with separate layers:
+    - domain/ (business core, no external deps)
+    - application/ (use cases)
+    - adapters/ (port implementations: auth, persistence, logging)
+    - infrastructure/ (config, IoC container, database)
+    - ui/ (presentation with NiceGUI)
+
+stack:
+  framework: NiceGUI (Python web UI)
+  database: PostgreSQL (SQLAlchemy Core — no ORM)
+  authentication: JWT + bcrypt
+  migrations: Alembic
+  package_manager: uv
+  linter: Ruff (line-length=88, target-version=py313)
+
+strict_tdd: true
+strict_tdd_reason: "Test runner available (pytest 9.0.3); enforced by default"
+
+testing:
+  runner:
+    command: "pytest tests/"
+    framework: "pytest 9.0.3"
+    tests_collected: 429
+  layers:
+    unit:
+      available: true
+      tool: "pytest"
+    integration:
+      available: true
+      tool: "pytest with fixtures/mocks"
+    e2e:
+      available: false
+      tool: null
+  coverage:
+    available: false
+    tool: null
+    recommendation: "Add pytest-cov to dev dependencies if metrics needed"
+  quality:
+    linter:
+      available: true
+      command: "ruff check src/ tests/"
+      version: "0.15.14"
+    type_checker:
+      available: false
+      tool: null
+    formatter:
+      available: false
+      tool: null
+
+phase_rules:
+  explore:
+    - "Verify assumptions against hexagonal architecture patterns"
+    - "Use pytest to prototype and validate ideas"
+    - "Check domain layer isolation (no external deps)"
+  
+  propose:
+    - "Document impact on each layer (domain → application → adapters → ui)"
+    - "Identify ports/adapters that need changes"
+    - "Sketch test scenarios early"
+  
+  spec:
+    - "Write delta specs for each affected layer"
+    - "Include test requirements in acceptance criteria"
+    - "Reference existing domain models, use cases, adapters"
+  
+  design:
+    - "Define new ports/adapters or extend existing ones"
+    - "Sketch hexagon boundaries"
+    - "Specify test fixtures and mocks needed"
+  
+  tasks:
+    - "Break into test-first tasks (test → implementation → integration)"
+    - "Each task must include before/after test comparison"
+    - "Separate domain, application, adapter, and UI changes"
+  
+  apply:
+    - "Run `pytest tests/` after each task to validate"
+    - "Use `ruff check` to catch style violations"
+    - "Keep commits small and focused per layer"
+  
+  verify:
+    - "Run full test suite: `pytest tests/`"
+    - "Verify coverage for new code (track manually if needed)"
+    - "Run `ruff check` to ensure linting compliance"
+  
+  archive:
+    - "Sync delta specs with implementation"
+    - "Document any runtime insights discovered"
+    - "Archive to `openspec/changes/archive/`"
+
+persistence:
+  mode: hybrid
+  engram:
+    project: gestiones-sos
+    capabilities: "obs-9146664033653fd7"
+    context: "obs-ee026703d8c87c5b"
+    registry: "obs-1815be00c8f2bb8f"
+  openspec:
+    config: "openspec/config.yaml"
+    specs_dir: "openspec/specs/"
+    changes_dir: "openspec/changes/"
