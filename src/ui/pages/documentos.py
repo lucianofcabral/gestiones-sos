@@ -23,6 +23,12 @@ _CATEGORY_LABELS: dict[str, str] = {
     "group_claim": "Grupos",
 }
 
+_ENTITY_TYPE_LABELS: dict[str, str] = {
+    "claim": "Gestión",
+    "invoice": "Factura",
+    "group_claim": "Grupo",
+}
+
 _CATEGORY_COLORS: dict[str, str] = {
     "claim": "#1a5276",      # dark blue
     "invoice": "#1e8449",    # dark green
@@ -239,6 +245,7 @@ def register_documentos_page() -> None:
 
                 _entity_columns = [
                     ("Documento", "text-sm w-36"),
+                    ("Tipo", "text-sm w-24"),
                     ("Categoría", "text-sm w-24"),
                     ("Fecha", "text-sm w-24"),
                     ("Detalle", "text-sm flex-1"),
@@ -264,6 +271,11 @@ def register_documentos_page() -> None:
                         )
                         ui.label(doc.name if doc else "—").classes(
                             "text-sm w-36"
+                        )
+
+                        # Entity type (Gestión, Factura, Grupo)
+                        ui.label(_ENTITY_TYPE_LABELS.get(etype, etype)).classes(
+                            "text-sm w-24"
                         )
 
                         # Category badge

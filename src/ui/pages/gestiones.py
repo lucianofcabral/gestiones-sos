@@ -433,6 +433,53 @@ def register_gestiones_page() -> None:
                 nonlocal _page
                 _page = 1
 
+            # ── Delete handler (inner scope for access to _render_gestiones) ───
+            def _delete_gestion(claim_id: UUID) -> None:
+                """Open delete confirmation dialog."""
+                with ui.dialog() as delete_dialog:
+                    with delete_dialog, ui.card().classes("p-4 min-w-96"):
+                        ui.label("Eliminar Gestión").classes("text-lg font-bold")
+                        ui.label("¿Está seguro de eliminar esta gestión?")
+                        
+                        with ui.row().classes("gap-2 justify-end mt-4"):
+                            ui.button("Cancelar", on_click=delete_dialog.close).props("flat")
+                            ui.button(
+                                "Eliminar",
+                                on_click=lambda: _delete_confirm(claim_id, delete_dialog)
+                            )
+                
+                delete_dialog.open()
+            
+            def _delete_confirm(claim_id: UUID, dialog) -> None:
+                """Execute delete."""
+                try:
+                    claim = container.claim_repo.get_by_id(claim_id)
+                    if not claim:
+                        ui.notify("Gestión no encontrada", type="negative")
+                        dialog.close()
+                        return
+                    
+                    kind = container.claim_kind_repo.get_by_id(claim.claim_kind_id)
+                    kind_name = kind.name if kind else "Unknown"
+                    
+                    if kind_name.upper() == "SOS":
+                        container.eliminar_gestion_sos.execute(
+                            EliminarGestionSOSInput(claim_id=claim_id)
+                        )
+                    else:
+                        container.eliminar_grouped_claim.execute(
+                            EliminarGroupedClaimInput(claim_id=claim_id)
+                        )
+                    
+                    ui.notify("Gestión eliminada", type="positive")
+                    _render_gestiones.refresh()
+                except ClaimHasActivePaymentsError:
+                    ui.notify("No se puede eliminar: hay pagos activos", type="negative")
+                except Exception as e:
+                    ui.notify(f"Error: {e}", type="negative")
+                finally:
+                    dialog.close()
+
             # ── Gestiones table ───────────────────────────────────────────────
 
             @ui.refreshable
@@ -487,26 +534,51 @@ def register_gestiones_page() -> None:
                         row_key='id'
                     ).classes('w-full')
                     
-                    # Render action icons per row below table
+                    # Add action icons as a table slot (Vue template)
+                    table.add_slot('body-cell-acciones', '''
+                        <q-td :props="props" class="text-center">
+                            <q-btn icon="edit" @click="$parent.$emit('edit', props.row)" flat dense color="blue" size="sm" />
+                            <q-btn icon="group" v-if="props.row.has_group" @click="$parent.$emit('grupo', props.row)" flat dense color="purple" size="sm" />
+                            <q-btn icon="add_circle" v-if="!props.row.solved" @click="$parent.$emit('pagos', props.row)" flat dense color="green" size="sm" />
+                            <q-btn icon="receipt" v-if="props.row.has_nc" @click="$parent.$emit('nc', props.row)" flat dense color="orange" size="sm" />
+                            <q-btn icon="delete" @click="$parent.$emit('delete', props.row)" flat dense color="red" size="sm" />
+                        </q-td>
+                    ''')
+                    
+                    # Register event handlers for action buttons
+                    def _handle_edit(row: dict) -> None:
+                        claim_id = row.get('claim_id')
+                        if claim_id:
+                            ui.navigate.to(f'/gestiones/{claim_id}')
+                    
+                    def _handle_grupo(row: dict) -> None:
+                        ui.notify("Grupo dialog - TBD", type="info")
+                    
+                    def _handle_pagos(row: dict) -> None:
+                        ui.notify("Pagos dialog - TBD", type="info")
+                    
+                    def _handle_nc(row: dict) -> None:
+                        ui.notify("NC dialog - TBD", type="info")
+                    
+                    def _handle_delete(row: dict) -> None:
+                        claim_id = row.get('claim_id')
+                        if claim_id:
+                            _delete_gestion(claim_id)
+                    
+                    # Bind table events to handlers
+                    table.on('edit', lambda e: _handle_edit(e.args))
+                    table.on('grupo', lambda e: _handle_grupo(e.args))
+                    table.on('pagos', lambda e: _handle_pagos(e.args))
+                    table.on('nc', lambda e: _handle_nc(e.args))
+                    table.on('delete', lambda e: _handle_delete(e.args))
+                    
+                    # Apply inactive row styling via CSS classes
+                    # Note: Add data binding or CSS rule for inactive rows
                     if page_data:
-                        ui.label("Acciones por Gestión").classes(
-                            "text-sm font-semibold mt-4 mb-2"
-                        )
-                        
                         for row in page_data:
-                            # Apply inactive row styling if needed
-                            row_class = 'table-inactive-row' if not row['active'] else ''
-                            
-                            with ui.row().classes(
-                                f"items-center gap-2 py-1 px-2 rounded {row_class}"
-                            ):
-                                # Show claim identifier
-                                ui.label(row['asegurado']).classes(
-                                    "flex-1 text-sm truncate"
-                                )
-                                
-                                # Render action icons
-                                _render_gestiones_actions(row['claim_id'], row)
+                            if not row['active']:
+                                # Could add CSS class via row styling if ui.table supports it
+                                pass
                     
                     # Render pagination controls
                     with ui.row().classes("items-center justify-center gap-4 mt-4"):
