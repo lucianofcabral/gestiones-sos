@@ -542,7 +542,7 @@ def register_pagos_page() -> None:
 
                     payment_rows.append({
                         'id': str(p.payment_id),
-                        'payment_id': p.payment_id,
+                        'payment_id': str(p.payment_id),
                         'monto': f"${p.amount:,.2f}",
                         'pagador': payer_name,
                         'medio': via_name,
@@ -557,7 +557,6 @@ def register_pagos_page() -> None:
                         'nc': nc_status_str,
                         'activo': "Sí" if p.active else "No",
                         'is_active': p.active,
-                        'payment_obj': p,
                     })
 
                 # Create table
@@ -573,7 +572,8 @@ def register_pagos_page() -> None:
 
                 # Register handlers
                 def _handle_edit(row: dict) -> None:
-                    p = row.get('payment_obj')
+                    pid = UUID(row.get('payment_id'))
+                    p = container.obtener_pagos.get_by_id(pid)
                     if p:
                         with ui.dialog() as edit_dialog:
                             _edit_payment_dialog(
@@ -583,40 +583,39 @@ def register_pagos_page() -> None:
                         edit_dialog.open()
 
                 def _handle_toggle(row: dict) -> None:
-                    p = row.get('payment_obj')
-                    if p:
-                        pid = p.payment_id
-                        active = p.active
-                        
-                        with ui.dialog() as confirm_dialog:
+                    pid = UUID(row.get('payment_id'))
+                    
+                    with ui.dialog() as confirm_dialog:
+                        p = container.obtener_pagos.get_by_id(pid)
+                        if p:
                             _confirm_toggle_active(
                                 confirm_dialog, p, _payments_table,
                             )
 
-                        async def _toggle_click() -> None:
-                            if active:
-                                res = container.can_inactivate_svc.execute(pid)
-                                can, reason = res
-                                if not can:
-                                    ui.notify(reason, type="warning")
-                                    return
-                                confirm_dialog._reason = reason
-                                confirm_dialog._is_activate = False
-                            else:
-                                payment = container.obtener_pagos.get_by_id(pid)
-                                if payment is None:
-                                    ui.notify("Pago no encontrado", type="negative")
-                                    return
-                                res = container.can_activate_svc.execute(payment)
-                                can, reason = res
-                                if not can:
-                                    ui.notify(reason, type="warning")
-                                    return
-                                confirm_dialog._reason = reason
-                                confirm_dialog._is_activate = True
-                            confirm_dialog.open()
+                            async def _toggle_click() -> None:
+                                if p.active:
+                                    res = container.can_inactivate_svc.execute(pid)
+                                    can, reason = res
+                                    if not can:
+                                        ui.notify(reason, type="warning")
+                                        return
+                                    confirm_dialog._reason = reason
+                                    confirm_dialog._is_activate = False
+                                else:
+                                    payment = container.obtener_pagos.get_by_id(pid)
+                                    if payment is None:
+                                        ui.notify("Pago no encontrado", type="negative")
+                                        return
+                                    res = container.can_activate_svc.execute(payment)
+                                    can, reason = res
+                                    if not can:
+                                        ui.notify(reason, type="warning")
+                                        return
+                                    confirm_dialog._reason = reason
+                                    confirm_dialog._is_activate = True
+                                confirm_dialog.open()
 
-                        ui.timer(0.1, _toggle_click, once=True)
+                            ui.timer(0.1, _toggle_click, once=True)
 
                 table.on('edit', lambda e: _handle_edit(e.args))
                 table.on('toggle', lambda e: _handle_toggle(e.args))
