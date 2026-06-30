@@ -130,73 +130,62 @@ def register_facturacion_page() -> None:
                     reverse=_sort_dir == -1,
                 )
 
-                # Header
-                _cols = [
-                    ("Número", "text-xs w-28"),
-                    ("Fecha", "text-xs w-24"),
-                    ("Monto", "text-xs w-24 text-right"),
-                    ("Descripción", "text-xs w-48"),
-                    ("Activo", "text-xs w-16"),
-                    ("", "text-xs w-24"),
+                # Define table columns
+                table_columns = [
+                    {'name': 'numero', 'label': 'Número', 'field': 'numero', 'align': 'left', 'sortable': True},
+                    {'name': 'fecha', 'label': 'Fecha', 'field': 'fecha', 'align': 'left', 'sortable': True},
+                    {'name': 'monto', 'label': 'Monto', 'field': 'monto', 'align': 'right', 'sortable': True},
+                    {'name': 'descripcion', 'label': 'Descripción', 'field': 'descripcion', 'align': 'left', 'sortable': True},
+                    {'name': 'activo', 'label': 'Activo', 'field': 'activo', 'align': 'center', 'sortable': True},
+                    {'name': 'acciones', 'label': 'Acciones', 'field': 'acciones', 'align': 'center', 'sortable': False},
                 ]
-                with ui.row().classes(
-                    "items-center gap-2 py-2 border-b border-gray-600 font-bold"
-                ):
-                    for i, (label, cls) in enumerate(_cols):
-                        arrow = (
-                            " ▲" if _sort_col == i and _sort_dir == 1
-                            else " ▼" if _sort_col == i
-                            else ""
-                        )
-                        ui.label(f"{label}{arrow}").classes(
-                            f"{cls} cursor-pointer"
-                        ).on("click", lambda i=i: _sort(i))
-
-                # Rows
+                
+                # Prepare table data
+                table_rows = []
                 for inv in invoices:
-                    with ui.row().classes(
-                        "items-center gap-2 py-1 hover:bg-gray-800"
-                    ):
-                        ui.label(inv.invoice_number).classes("text-sm w-28")
-                        ui.label(inv.emited_date.strftime("%Y-%m-%d")).classes(
-                            "text-sm w-24 text-gray-400"
-                        )
-                        ui.label(f"${inv.amount:,.2f}").classes(
-                            "text-sm w-24 text-right"
-                        )
-                        ui.label(inv.description or "—").classes(
-                            "text-sm w-48 text-gray-400 truncate"
-                        )
-
-                        badge_color = (
-                            "bg-green-600" if inv.active else "bg-red-600"
-                        )
-                        ui.label("Sí" if inv.active else "No").classes(
-                            "text-xs font-bold px-2 py-0.5 rounded-full "
-                            f"{badge_color} text-white w-16 text-center"
-                        )
-
-                        with ui.row().classes("gap-1"):
-                            # Edit
+                    table_rows.append({
+                        'id': str(inv.invoice_id),
+                        'invoice_id': inv.invoice_id,
+                        'numero': inv.invoice_number,
+                        'fecha': inv.emited_date.strftime('%Y-%m-%d'),
+                        'monto': f'${inv.amount:,.2f}',
+                        'descripcion': inv.description or '—',
+                        'activo': 'Sí' if inv.active else 'No',
+                        'active': inv.active,
+                    })
+                
+                # Create table
+                table = ui.table(columns=table_columns, rows=table_rows, row_key='id').classes('w-full')
+                
+                # Add action buttons slot
+                table.add_slot('body-cell-acciones', '''
+                    <q-td :props="props" class="text-center">
+                        <q-btn icon="edit" @click="$parent.$emit('edit', props.row)" flat dense color="blue" size="sm" />
+                        <q-btn :icon="props.row.active ? 'toggle_off' : 'toggle_on'" @click="$parent.$emit('toggle', props.row)" flat dense :color="props.row.active ? 'green' : 'red'" size="sm" />
+                    </q-td>
+                ''')
+                
+                # Register event handlers
+                def _handle_edit(row: dict) -> None:
+                    inv_id = row.get('invoice_id')
+                    if inv_id:
+                        inv = container.billing_repo.get_by_id(inv_id)
+                        if inv:
                             with ui.dialog() as edit_dialog:
-                                _invoice_dialog(
-                                    inv, _render_invoices.refresh, edit_dialog,
-                                )
-                            ui.button(
-                                icon="edit",
-                                on_click=edit_dialog.open,
-                            ).props("flat dense round size=sm")
+                                _invoice_dialog(inv, _render_invoices.refresh, edit_dialog)
+                            edit_dialog.open()
+                
+                def _handle_toggle(row: dict) -> None:
+                    inv_id = row.get('invoice_id')
+                    if inv_id:
+                        inv = container.billing_repo.get_by_id(inv_id)
+                        if inv:
+                            ui.notify(f"Toggle {inv_id} - TBD", type="info")
+                
+                table.on('edit', lambda e: _handle_edit(e.args))
+                table.on('toggle', lambda e: _handle_toggle(e.args))
 
-                            # Toggle active
-                            ui.button(
-                                icon="toggle_off" if inv.active else "toggle_on",
-                                on_click=lambda iid=inv.invoice_id,
-                                active=inv.active: _toggle_active(
-                                    iid, not active
-                                ),
-                            ).props("flat dense round size=sm")
-
-            # ── Toggle active ─────────────────────────────────────────────────
+             # ── Toggle active ─────────────────────────────────────────────────
 
             @with_audit_user
             def _toggle_active(invoice_id: UUID, active: bool) -> None:

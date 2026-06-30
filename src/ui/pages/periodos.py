@@ -138,85 +138,58 @@ def _rebuild_detail(
             ).props("flat size=sm color=white")
 
         if invoices:
-            _sort_col = {"idx": 0, "dir": -1}
-
-            def _sort_inv(col_idx: int) -> None:
-                if _sort_col["idx"] == col_idx:
-                    _sort_col["dir"] *= -1
-                else:
-                    _sort_col["idx"] = col_idx
-                    _sort_col["dir"] = 1
-                refresh_fn()
-
-            _col_labels = [
-                ("Número", "text-xs w-28"),
-                ("Fecha", "text-xs w-24"),
-                ("Importe", "text-xs w-24 text-right"),
-                ("Descripción", "text-xs w-48"),
-                ("Activo", "text-xs w-16"),
-                ("", "text-xs w-20"),
+            # Define table columns
+            table_columns = [
+                {'name': 'numero', 'label': 'Número', 'field': 'numero', 'align': 'left', 'sortable': True},
+                {'name': 'fecha', 'label': 'Fecha', 'field': 'fecha', 'align': 'left', 'sortable': True},
+                {'name': 'importe', 'label': 'Importe', 'field': 'importe', 'align': 'right', 'sortable': True},
+                {'name': 'descripcion', 'label': 'Descripción', 'field': 'descripcion', 'align': 'left', 'sortable': True},
+                {'name': 'activo', 'label': 'Activo', 'field': 'activo', 'align': 'center', 'sortable': True},
+                {'name': 'acciones', 'label': 'Acciones', 'field': 'acciones', 'align': 'center', 'sortable': False},
             ]
-            with ui.row().classes(
-                "items-center gap-2 py-1 border-b border-gray-600 font-bold"
-            ):
-                for i, (label, cls) in enumerate(_col_labels):
-                    arrow = (
-                        " ▲" if _sort_col["idx"] == i and _sort_col["dir"] == 1
-                        else " ▼" if _sort_col["idx"] == i
-                        else ""
-                    )
-                    ui.label(f"{label}{arrow}").classes(
-                        f"{cls} cursor-pointer"
-                    ).on("click", lambda i=i: _sort_inv(i))
-
-            # Sort
-            _keys = [
-                lambda i: i.invoice_number,
-                lambda i: i.emited_date,
-                lambda i: i.amount,
-                lambda i: i.description or "",
-                lambda i: i.active,
-            ]
-            sorted_inv = sorted(
-                invoices, key=_keys[_sort_col["idx"]],
-                reverse=_sort_col["dir"] == -1,
-            )
-
-            for inv in sorted_inv:
-                with ui.row().classes("items-center gap-2 py-1 hover:bg-gray-800"):
-                    ui.label(inv.invoice_number).classes("text-sm w-28")
-                    ui.label(inv.emited_date.strftime("%Y-%m-%d")).classes(
-                        "text-sm w-24 text-gray-400"
-                    )
-                    ui.label(f"${inv.amount:,.2f}").classes(
-                        "text-sm w-24 text-right"
-                    )
-                    ui.label(inv.description or "—").classes(
-                        "text-sm w-48 text-gray-400 truncate"
-                    )
-                    bc = "bg-green-600" if inv.active else "bg-red-600"
-                    ui.label("Sí" if inv.active else "No").classes(
-                        f"text-xs font-bold px-2 py-0.5 rounded-full "
-                        f"{bc} text-white w-16 text-center"
-                    )
-                    with ui.row().classes("gap-1"):
-                        # Edit
+            
+            # Prepare table data
+            table_rows = []
+            for inv in invoices:
+                table_rows.append({
+                    'id': str(inv.invoice_id),
+                    'invoice_id': inv.invoice_id,
+                    'numero': inv.invoice_number,
+                    'fecha': inv.emited_date.strftime('%Y-%m-%d'),
+                    'importe': f'${inv.amount:,.2f}',
+                    'descripcion': inv.description or '—',
+                    'activo': 'Sí' if inv.active else 'No',
+                    'active': inv.active,
+                })
+            
+            # Create table
+            table = ui.table(columns=table_columns, rows=table_rows, row_key='id').classes('w-full')
+            
+            # Add action buttons slot
+            table.add_slot('body-cell-acciones', '''
+                <q-td :props="props" class="text-center">
+                    <q-btn icon="edit" @click="$parent.$emit('edit', props.row)" flat dense color="blue" size="sm" />
+                    <q-btn :icon="props.row.active ? 'toggle_off' : 'toggle_on'" @click="$parent.$emit('toggle', props.row)" flat dense :color="props.row.active ? 'green' : 'red'" size="sm" />
+                </q-td>
+            ''')
+            
+            # Register event handlers
+            def _handle_edit_inv(row: dict) -> None:
+                inv_id = row.get('invoice_id')
+                if inv_id:
+                    inv = container.billing_repo.get_by_id(inv_id)
+                    if inv:
                         with ui.dialog() as edit_dlg:
-                            _invoice_dialog(
-                                inv, period, refresh_fn, container, edit_dlg,
-                            )
-                        ui.button(
-                            icon="edit",
-                            on_click=edit_dlg.open,
-                        ).props("flat dense round size=sm")
-                        # Toggle active
-                        ui.button(
-                            icon="toggle_off" if inv.active else "toggle_on",
-                            on_click=lambda iid=inv.invoice_id,
-                            active=inv.active: _toggle_invoice(
-                                iid, not active, refresh_fn, container,
-                            ),
-                        ).props("flat dense round size=sm")
+                            _invoice_dialog(inv, period, refresh_fn, container, edit_dlg)
+                        edit_dlg.open()
+            
+            def _handle_toggle_inv(row: dict) -> None:
+                inv_id = row.get('invoice_id')
+                if inv_id:
+                    ui.notify(f"Toggle {inv_id} - TBD", type="info")
+            
+            table.on('edit', lambda e: _handle_edit_inv(e.args))
+            table.on('toggle', lambda e: _handle_toggle_inv(e.args))
         else:
             ui.label("No hay facturas en este período.").classes(
                 "text-sm text-gray-400 italic"
@@ -228,36 +201,43 @@ def _rebuild_detail(
         ui.label("Notas de Crédito").classes("text-md font-bold mb-2")
 
         if ncs:
-            with ui.row().classes(
-                "items-center gap-2 py-1 border-b border-gray-600 font-bold"
-            ):
-                ui.label("ID Pago").classes("text-xs w-32")
-                ui.label("Entregado").classes("text-xs w-20")
-                ui.label("Fecha").classes("text-xs w-24")
-                ui.label("").classes("text-xs w-20")
-
+            # Define table columns for NC
+            nc_columns = [
+                {'name': 'pago_id', 'label': 'ID Pago', 'field': 'pago_id', 'align': 'left', 'sortable': True},
+                {'name': 'entregado', 'label': 'Entregado', 'field': 'entregado', 'align': 'center', 'sortable': True},
+                {'name': 'fecha', 'label': 'Fecha', 'field': 'fecha', 'align': 'left', 'sortable': True},
+                {'name': 'acciones', 'label': 'Acciones', 'field': 'acciones', 'align': 'center', 'sortable': False},
+            ]
+            
+            # Prepare table data
+            nc_rows = []
             for nc in ncs:
-                with ui.row().classes("items-center gap-2 py-1 hover:bg-gray-800"):
-                    ui.label(str(nc.payment_id)[:8] + "...").classes(
-                        "text-sm w-32 text-gray-400"
-                    )
-                    badge_c = "bg-green-600" if nc.delivered else "bg-yellow-600"
-                    ui.label("Sí" if nc.delivered else "No").classes(
-                        f"text-xs font-bold px-2 py-0.5 rounded-full "
-                        f"{badge_c} text-white w-20 text-center"
-                    )
-                    ui.label(nc.created_date.strftime("%Y-%m-%d")).classes(
-                        "text-sm w-24 text-gray-400"
-                    )
-                    # Disassociate from period
-                    ui.button(
-                        icon="link_off",
-                        on_click=lambda ncid=nc.nc_payment_id: _disassociate_nc(
-                            ncid, refresh_fn, container,
-                        ),
-                    ).props(
-                        "flat dense round size=sm"
-                    ).tooltip("Desvincular del período")
+                nc_rows.append({
+                    'id': str(nc.nc_payment_id),
+                    'nc_payment_id': nc.nc_payment_id,
+                    'pago_id': str(nc.payment_id)[:8] + '...',
+                    'entregado': 'Sí' if nc.delivered else 'No',
+                    'delivered': nc.delivered,
+                    'fecha': nc.created_date.strftime('%Y-%m-%d'),
+                })
+            
+            # Create table
+            nc_table = ui.table(columns=nc_columns, rows=nc_rows, row_key='id').classes('w-full')
+            
+            # Add action buttons slot
+            nc_table.add_slot('body-cell-acciones', '''
+                <q-td :props="props" class="text-center">
+                    <q-btn icon="link_off" @click="$parent.$emit('disassociate', props.row)" flat dense color="orange" size="sm" />
+                </q-td>
+            ''')
+            
+            # Register event handler
+            def _handle_disassociate_nc(row: dict) -> None:
+                nc_id = row.get('nc_payment_id')
+                if nc_id:
+                    _disassociate_nc(nc_id, refresh_fn, container)
+            
+            nc_table.on('disassociate', lambda e: _handle_disassociate_nc(e.args))
         else:
             ui.label("No hay notas de crédito en este período.").classes(
                 "text-sm text-gray-400 italic"

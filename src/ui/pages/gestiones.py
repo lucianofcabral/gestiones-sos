@@ -202,14 +202,15 @@ def _apply_filters_to_prepared_data(
         result = [r for r in result if r['tipo'] == filter_kind]
     
     # Filter by text (policy, customer, plate, gestion)
+    # Ensure all values are converted to strings and lowercase for safe comparison
     if filter_text:
         q = filter_text.lower()
         result = [
             r for r in result
-            if q in r['poliza'].lower()
-            or q in r['asegurado'].lower()
-            or q in r['patente'].lower()
-            or q in r['gestion'].lower()
+            if (q in str(r.get('poliza') or '').lower()
+                or q in str(r.get('asegurado') or '').lower()
+                or q in str(r.get('patente') or '').lower()
+                or q in str(r.get('gestion') or '').lower())
         ]
     
     # Filter by solved status

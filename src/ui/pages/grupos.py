@@ -386,55 +386,55 @@ def register_grupos_page() -> None:
                     reverse=_sort_dir == -1,
                 )
 
-                _col_labels = [
-                    ("Nombre", "text-xs w-36"),
-                    ("Creado", "text-xs w-24"),
-                    ("Descripción", "text-xs w-36"),
-                    ("Gestiones", "text-xs w-16 text-center"),
-                    ("Monto Total", "text-xs w-28 text-right"),
-                    ("Acciones", "text-xs w-28"),
+                # Define table columns
+                table_columns = [
+                    {'name': 'nombre', 'label': 'Nombre', 'field': 'nombre', 'align': 'left', 'sortable': True},
+                    {'name': 'creado', 'label': 'Creado', 'field': 'creado', 'align': 'left', 'sortable': True},
+                    {'name': 'descripcion', 'label': 'Descripción', 'field': 'descripcion', 'align': 'left', 'sortable': True},
+                    {'name': 'cant_gestiones', 'label': 'Gestiones', 'field': 'cant_gestiones', 'align': 'center', 'sortable': True},
+                    {'name': 'monto_total', 'label': 'Monto Total', 'field': 'monto_total', 'align': 'right', 'sortable': True},
+                    {'name': 'acciones', 'label': 'Acciones', 'field': 'acciones', 'align': 'center', 'sortable': False},
                 ]
-                with ui.row().classes(
-                    "items-center gap-4 py-2 border-b border-gray-600 font-bold w-full"
-                ):
-                    for i, (label, cls) in enumerate(_col_labels):
-                        arrow = (
-                            " ▲"
-                            if _sort_col == i and _sort_dir == 1
-                            else " ▼"
-                            if _sort_col == i
-                            else ""
-                        )
-                        ui.label(f"{label}{arrow}").classes(f"{cls} cursor-pointer").on(
-                            "click", lambda i=i: _sort(i)
-                        )
-
+                
+                # Prepare table data
+                table_rows = []
                 for g in groups:
                     s = stats.get(g.group_id, {"count": 0, "total": 0.0})
-                    with ui.row().classes(
-                        "items-center gap-4 py-1 hover:bg-gray-800 w-full"
-                    ):
-                        ui.label(g.name).classes("text-sm w-36")
-                        ui.label(
-                            g.created_at.strftime("%Y-%m-%d") if g.created_at else "—"
-                        ).classes("text-sm w-24 text-gray-400")
-                        ui.label(g.description or "—").classes(
-                            "text-sm w-36 text-gray-400 truncate"
-                        )
-                        ui.label(str(s["count"])).classes("text-sm w-16 text-center")
-                        ui.label(f"${s['total']:,.2f}").classes(
-                            "text-sm w-28 text-right"
-                        )
-                        with ui.row().classes("gap-1"):
-                            ui.button(
-                                "Editar",
-                                icon="edit",
-                                on_click=lambda g=g: _edit_group(g),
-                            ).props("flat size=sm dense")
-                            ui.button(
-                                "Eliminar",
-                                icon="delete",
-                                on_click=lambda gid=g.group_id: _delete_group(gid),
-                            ).props("flat size=sm dense color=negative")
+                    table_rows.append({
+                        'id': str(g.group_id),
+                        'group_id': g.group_id,
+                        'nombre': g.name,
+                        'creado': g.created_at.strftime('%Y-%m-%d') if g.created_at else '—',
+                        'descripcion': g.description or '—',
+                        'cant_gestiones': str(s['count']),
+                        'monto_total': f"${s['total']:,.2f}",
+                    })
+                
+                # Create table
+                table = ui.table(columns=table_columns, rows=table_rows, row_key='id').classes('w-full')
+                
+                # Add action buttons slot
+                table.add_slot('body-cell-acciones', '''
+                    <q-td :props="props" class="text-center">
+                        <q-btn label="Editar" icon="edit" @click="$parent.$emit('edit', props.row)" flat dense color="blue" size="sm" />
+                        <q-btn label="Eliminar" icon="delete" @click="$parent.$emit('delete', props.row)" flat dense color="red" size="sm" />
+                    </q-td>
+                ''')
+                
+                # Register event handlers
+                def _handle_edit(row: dict) -> None:
+                    group_id = row.get('group_id')
+                    if group_id:
+                        g = container.group_claim_repo.get_by_id(group_id)
+                        if g:
+                            _edit_group(g)
+                
+                def _handle_delete(row: dict) -> None:
+                    group_id = row.get('group_id')
+                    if group_id:
+                        _delete_group(group_id)
+                
+                table.on('edit', lambda e: _handle_edit(e.args))
+                table.on('delete', lambda e: _handle_delete(e.args))
 
             _render_grupos()
