@@ -509,37 +509,8 @@ def register_pagos_page() -> None:
                     reverse=_sort_dir == -1
                 )
 
-                # Header
-                _cols = [
-                    ("Monto", "w-24 text-right"),
-                    ("Pagador", "w-24"),
-                    ("Medio", "w-20"),
-                    ("Beneficiario", "w-24"),
-                    ("Cliente", "w-28"),
-                    ("Tipo", "w-20"),
-                    ("Grupo", "w-20"),
-                    ("Dominio", "w-24"),
-                    ("Póliza", "w-24"),
-                    ("Gestión", "w-20"),
-                    ("Fecha", "w-24"),
-                    ("NC", "w-20"),
-                    ("Activo", "w-14"),
-                    ("Acciones", "w-36"),
-                ]
-                with ui.row().classes(
-                    "items-center gap-2 py-2 border-b border-gray-600 font-bold"
-                ):
-                    for i, (label, width) in enumerate(_cols):
-                        arrow = (
-                            " ▲" if _sort_col == i and _sort_dir == 1
-                            else " ▼" if _sort_col == i
-                            else ""
-                        )
-                        ui.label(f"{label}{arrow}").classes(
-                            f"text-xs {width} cursor-pointer"
-                        ).on("click", lambda i=i: _sort(i))
-
-                # Rows
+                # Prepare table data
+                payment_rows = []
                 for p in payments:
                     payer_name = agent_options.get(str(p.payer_id), "—")
                     payee_name = agent_options.get(str(p.payee_id), "—")
@@ -563,116 +534,92 @@ def register_pagos_page() -> None:
 
                     # Check NC status for this payment
                     nc = container.obtener_ncs.get_by_payment_id(p.payment_id)
-                    nc_badge = ""
-                    nc_color = ""
-                    if nc is not None:
-                        if nc.delivered:
-                            nc_badge = "Entregado"
-                            nc_color = "bg-green-600"
-                        else:
-                            nc_badge = "Pendiente"
-                            nc_color = "bg-yellow-600"
-                    else:
-                        nc_badge = "—"
-                        nc_color = "bg-gray-600"
+                    nc_status_str = (
+                        "Entregado" if nc and nc.delivered
+                        else "Pendiente" if nc
+                        else "—"
+                    )
 
-                    with ui.row().classes(
-                        "items-center gap-2 py-1 hover:bg-gray-800"
-                    ):
-                        ui.label(f"${p.amount:,.2f}").classes(
-                            "text-sm w-24 text-right"
-                        )
-                        ui.label(payer_name).classes("text-sm w-24")
-                        ui.label(via_name).classes("text-sm w-20")
-                        ui.label(payee_name).classes("text-sm w-24")
-                        ui.label(c_name).classes("text-sm w-28")
-                        ui.label(c_kind).classes("text-sm w-20")
-                        ui.label(c_group).classes("text-sm w-20")
-                        ui.label(c_plate).classes("text-sm w-24")
-                        ui.label(c_policy).classes("text-sm w-24")
-                        ui.label(str(p.claim_id)[:8]).classes(
-                            "text-sm w-20 text-gray-400"
-                        )
-                        ui.label(
-                            p.created_date.strftime("%Y-%m-%d")
-                        ).classes("text-sm w-24 text-gray-400")
+                    payment_rows.append({
+                        'id': str(p.payment_id),
+                        'payment_id': p.payment_id,
+                        'monto': f"${p.amount:,.2f}",
+                        'pagador': payer_name,
+                        'medio': via_name,
+                        'beneficiario': payee_name,
+                        'cliente': c_name,
+                        'tipo': c_kind,
+                        'grupo': c_group,
+                        'dominio': c_plate,
+                        'poliza': c_policy,
+                        'gestion': str(p.claim_id)[:8],
+                        'fecha': p.created_date.strftime("%Y-%m-%d"),
+                        'nc': nc_status_str,
+                        'activo': "Sí" if p.active else "No",
+                        'is_active': p.active,
+                        'payment_obj': p,
+                    })
 
-                        # NC badge
-                        ui.label(nc_badge).classes(
-                            f"text-xs font-bold px-2 py-0.5 rounded-full "
-                            f"{nc_color} text-white w-20 text-center"
-                        )
+                # Create table
+                table = ui.table(columns=PAGOS_COLUMNS, rows=payment_rows, row_key='id').classes('w-full')
 
-                        # Active badge
-                        badge_color = (
-                            "bg-green-600" if p.active else "bg-red-600"
-                        )
-                        ui.label("Sí" if p.active else "No").classes(
-                            f"text-xs font-bold px-2 py-0.5 rounded-full "
-                            f"{badge_color} text-white w-14 text-center"
-                        )
+                # Add action icons slot
+                table.add_slot('body-cell-acciones', '''
+                    <q-td :props="props" class="text-center gap-1">
+                        <q-btn icon="edit" @click="$parent.$emit('edit', props.row)" flat dense color="blue" size="sm" />
+                        <q-btn :icon="props.row.is_active ? 'toggle_off' : 'toggle_on'" @click="$parent.$emit('toggle', props.row)" flat dense :color="props.row.is_active ? 'orange-7' : 'grey'" size="sm" />
+                    </q-td>
+                ''')
 
-                        # ── Action buttons ────────────────────────────────
-                        with ui.row().classes("gap-1 w-36"):
-                            # Edit
-                            with ui.dialog() as edit_dialog:
-                                _edit_payment_dialog(
-                                    edit_dialog, p, agent_options,
-                                    via_options, _payments_table,
-                                )
-                            ui.button(
-                                icon="edit",
-                                on_click=edit_dialog.open,
-                            ).props("flat dense round size=sm")
+                # Register handlers
+                def _handle_edit(row: dict) -> None:
+                    p = row.get('payment_obj')
+                    if p:
+                        with ui.dialog() as edit_dialog:
+                            _edit_payment_dialog(
+                                edit_dialog, p, agent_options,
+                                via_options, _payments_table,
+                            )
+                        edit_dialog.open()
 
-                            # Inactivate / Activate
-                            with ui.dialog() as confirm_dialog:
-                                _confirm_toggle_active(
-                                    confirm_dialog, p, _payments_table,
-                                )
+                def _handle_toggle(row: dict) -> None:
+                    p = row.get('payment_obj')
+                    if p:
+                        pid = p.payment_id
+                        active = p.active
+                        
+                        with ui.dialog() as confirm_dialog:
+                            _confirm_toggle_active(
+                                confirm_dialog, p, _payments_table,
+                            )
 
-                            async def _toggle_click(
-                                pid: UUID = p.payment_id,
-                                active: bool = p.active,
-                                dlg=confirm_dialog,
-                            ) -> None:
-                                if active:
-                                    res = container.can_inactivate_svc.execute(
-                                        pid
-                                    )
-                                    can, reason = res
-                                    if not can:
-                                        ui.notify(reason, type="warning")
-                                        return
-                                    dlg._reason = reason
-                                    dlg._is_activate = False
-                                else:
-                                    payment = (
-                                        container.obtener_pagos.get_by_id(pid)
-                                    )
-                                    if payment is None:
-                                        ui.notify(
-                                            "Pago no encontrado",
-                                            type="negative",
-                                        )
-                                        return
-                                    res = container.can_activate_svc.execute(
-                                        payment
-                                    )
-                                    can, reason = res
-                                    if not can:
-                                        ui.notify(reason, type="warning")
-                                        return
-                                    dlg._reason = reason
-                                    dlg._is_activate = True
-                                dlg.open()
+                        async def _toggle_click() -> None:
+                            if active:
+                                res = container.can_inactivate_svc.execute(pid)
+                                can, reason = res
+                                if not can:
+                                    ui.notify(reason, type="warning")
+                                    return
+                                confirm_dialog._reason = reason
+                                confirm_dialog._is_activate = False
+                            else:
+                                payment = container.obtener_pagos.get_by_id(pid)
+                                if payment is None:
+                                    ui.notify("Pago no encontrado", type="negative")
+                                    return
+                                res = container.can_activate_svc.execute(payment)
+                                can, reason = res
+                                if not can:
+                                    ui.notify(reason, type="warning")
+                                    return
+                                confirm_dialog._reason = reason
+                                confirm_dialog._is_activate = True
+                            confirm_dialog.open()
 
-                            ui.button(
-                                icon="toggle_off"
-                                if p.active
-                                else "toggle_on",
-                                on_click=_toggle_click,
-                            ).props("flat dense round size=sm")
+                        ui.timer(0.1, _toggle_click, once=True)
+
+                table.on('edit', lambda e: _handle_edit(e.args))
+                table.on('toggle', lambda e: _handle_toggle(e.args))
 
             # ══════════════════════════════════════════════════════════════════
             # DIALOG DEFINITIONS
