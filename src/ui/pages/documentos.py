@@ -238,122 +238,111 @@ def register_documentos_page() -> None:
 
             # ── Related entities table ─────────────────────────────────────
             def _render_related_entities(ents: list[dict], _container) -> None:
-                """Render the related-entities table for a selected document."""
+                """Render the related-entities table for a selected document using ui.table()."""
                 ui.label("Entidades Relacionadas").classes(
                     "text-lg font-semibold mb-2 mt-4"
                 )
 
-                _entity_columns = [
-                    ("Documento", "text-sm w-36"),
-                    ("Tipo", "text-sm w-24"),
-                    ("Categoría", "text-sm w-24"),
-                    ("Fecha", "text-sm w-24"),
-                    ("Detalle", "text-sm flex-1"),
+                # Define table columns for related entities
+                entity_columns = [
+                    {'name': 'documento', 'label': 'Documento', 'field': 'documento', 'align': 'left', 'sortable': True, 'style': 'min-width: 150px;'},
+                    {'name': 'tipo', 'label': 'Tipo', 'field': 'tipo', 'align': 'left', 'sortable': True, 'style': 'min-width: 100px;'},
+                    {'name': 'categoria', 'label': 'Categoría', 'field': 'categoria', 'align': 'left', 'sortable': True, 'style': 'min-width: 100px;'},
+                    {'name': 'fecha', 'label': 'Fecha', 'field': 'fecha', 'align': 'left', 'sortable': True, 'style': 'min-width: 100px;'},
+                    {'name': 'detalle', 'label': 'Detalle', 'field': 'detalle', 'align': 'left', 'sortable': False, 'style': 'flex: 1; min-width: 200px;'},
                 ]
 
-                with ui.row().classes(
-                    "items-center gap-2 py-2 border-b border-gray-600 font-bold"
-                ):
-                    for label, cls in _entity_columns:
-                        ui.label(label).classes(cls)
-
+                # Prepare table data
+                table_rows = []
                 for ent in ents:
                     etype = ent["entity_type"]
-                    bg_color = _CATEGORY_COLORS.get(etype, "#555")
+                    doc = _container.document_repo.get_by_id(ent["document_id"])
+                    created = ent.get("created_at")
+                    fecha_str = created.strftime("%d/%m/%Y") if created and hasattr(created, "strftime") else "—"
+                    
+                    table_rows.append({
+                        'id': str(ent["document_id"]),
+                        'document_id': ent["document_id"],
+                        'entity_id': ent["entity_id"],
+                        'entity_type': etype,
+                        'documento': doc.name if doc else "—",
+                        'tipo': _ENTITY_TYPE_LABELS.get(etype, etype),
+                        'categoria': _CATEGORY_LABELS.get(etype, etype),
+                        'fecha': fecha_str,
+                        'detalle': ent.get("display", "—"),
+                    })
 
-                    with ui.row().classes(
-                        "items-center gap-2 py-2 hover:bg-gray-700 "
-                        "cursor-pointer rounded"
-                    ).on("click", lambda e=ent: _open_entity(e)):
-                        # Document name
-                        doc = _container.document_repo.get_by_id(
-                            ent["document_id"]
-                        )
-                        ui.label(doc.name if doc else "—").classes(
-                            "text-sm w-36"
-                        )
-
-                        # Entity type (Gestión, Factura, Grupo)
-                        ui.label(_ENTITY_TYPE_LABELS.get(etype, etype)).classes(
-                            "text-sm w-24"
-                        )
-
-                        # Category badge
-                        ui.label(
-                            _CATEGORY_LABELS.get(etype, etype)
-                        ).classes(
-                            "text-xs font-bold px-2 py-1 rounded text-white "
-                            "text-center w-24"
-                        ).style(f"background-color: {bg_color}")
-
-                        # Date
-                        created = ent.get("created_at")
-                        if created and hasattr(created, "strftime"):
-                            ui.label(created.strftime("%d/%m/%Y")).classes(
-                                "text-sm w-24 text-gray-400"
-                            )
-                        else:
-                            ui.label("—").classes(
-                                "text-sm w-24 text-gray-400"
-                            )
-
-                        # Detail (category-specific)
-                        ui.label(ent.get("display", "—")).classes(
-                            "text-sm flex-1 text-gray-300"
-                        )
+                # Create table
+                if table_rows:
+                    table = ui.table(columns=entity_columns, rows=table_rows, row_key='id').classes('w-full')
+                    
+                    # Register click handler for row selection
+                    def _handle_row_click(ent: dict) -> None:
+                        _open_entity(ent)
+                    
+                    # Bind table row click
+                    # Note: Using custom click handler via JavaScript slot
+                    table.add_slot('body-cell-documento', '''
+                        <q-td :props="props" class="cursor-pointer hover:bg-gray-700 rounded" @click="$parent.$emit('row-select', props.row)">
+                            {{ props.row.documento }}
+                        </q-td>
+                    ''')
+                    table.on('row-select', lambda e: _handle_row_click(e.args))
 
             # ── List view ─────────────────────────────────────────────────
             def _render_list_view(docs: list) -> None:
+                # Define columns for list view
                 list_columns = [
-                    ("Nombre", "text-sm w-36"),
-                    ("Tipo", "text-sm w-20"),
-                    ("Tamaño", "text-sm w-20 text-right"),
-                    ("MIME", "text-sm w-28"),
-                    ("Fecha", "text-sm w-24"),
-                    ("", "text-sm w-16"),
+                    {'name': 'nombre', 'label': 'Nombre', 'field': 'nombre', 'align': 'left', 'sortable': True, 'style': 'min-width: 200px; flex: 1;'},
+                    {'name': 'tipo', 'label': 'Tipo', 'field': 'tipo', 'align': 'left', 'sortable': True, 'style': 'min-width: 100px;'},
+                    {'name': 'tamaño', 'label': 'Tamaño', 'field': 'tamaño', 'align': 'right', 'sortable': True, 'style': 'min-width: 100px;'},
+                    {'name': 'mime', 'label': 'MIME', 'field': 'mime', 'align': 'left', 'sortable': True, 'style': 'min-width: 120px;'},
+                    {'name': 'fecha', 'label': 'Fecha', 'field': 'fecha', 'align': 'left', 'sortable': True, 'style': 'min-width: 100px;'},
+                    {'name': 'acciones', 'label': 'Acciones', 'field': 'acciones', 'align': 'center', 'sortable': False, 'style': 'min-width: 80px;'},
                 ]
-                with ui.row().classes(
-                    "items-center gap-2 py-2 border-b border-gray-600 "
-                    "font-bold w-full"
-                ):
-                    for label, cls in list_columns:
-                        ui.label(label).classes(cls)
 
-                for doc in sorted(
-                    docs, key=lambda d: d.created_at, reverse=True
-                ):
-                    is_selected = (
-                        selected_doc_id["id"] == doc.document_id
-                    )
-                    row_cls = (
-                        "items-center gap-2 py-2 px-3 cursor-pointer rounded "
-                        f"{'bg-blue-900' if is_selected else 'hover:bg-gray-700'}"
-                    )
-                    with ui.row().classes(row_cls).on(
-                        "click",
-                        lambda d=doc: _select_document(d.document_id),
-                    ):
-                        ui.label(doc.name).classes("text-sm w-36 truncate")
-                        ui.label(doc.type).classes("text-sm w-20")
-                        ui.label(_format_size(doc.size)).classes(
-                            "text-sm w-20 text-right text-gray-400"
-                        )
-                        ui.label(doc.mime).classes(
-                            "text-sm w-28 text-gray-400 truncate"
-                        )
-                        ui.label(
-                            doc.created_at.strftime("%d/%m/%Y")
-                        ).classes("text-sm w-24 text-gray-400")
-                        ui.button(
-                            icon="download",
-                            on_click=lambda did=doc.document_id: _download(
-                                did
-                            ),
-                        ).props("flat dense round size=sm")
+                # Prepare table data
+                table_rows = []
+                sorted_docs = sorted(docs, key=lambda d: d.created_at, reverse=True)
+                for doc in sorted_docs:
+                    table_rows.append({
+                        'id': str(doc.document_id),
+                        'document_id': doc.document_id,
+                        'nombre': doc.name,
+                        'tipo': doc.type,
+                        'tamaño': _format_size(doc.size),
+                        'mime': doc.mime,
+                        'fecha': doc.created_at.strftime("%d/%m/%Y"),
+                        'is_selected': selected_doc_id["id"] == doc.document_id,
+                    })
+
+                if table_rows:
+                    table = ui.table(columns=list_columns, rows=table_rows, row_key='id').classes('w-full')
+                    
+                    # Add action icons slot
+                    table.add_slot('body-cell-acciones', '''
+                        <q-td :props="props" class="text-center">
+                            <q-btn icon="download" @click="$parent.$emit('download', props.row)" flat dense color="blue" size="sm" />
+                        </q-td>
+                    ''')
+                    
+                    # Register handlers
+                    def _handle_download(row: dict) -> None:
+                        _download(row.get('document_id'))
+                    
+                    table.on('download', lambda e: _handle_download(e.args))
 
             # ── Category view ────────────────────────────────────────────
             def _render_category_view(docs: list) -> None:
                 categories = _group_docs_by_category(docs, container)
+
+                # Define columns for category view (simpler than list view)
+                cat_columns = [
+                    {'name': 'nombre', 'label': 'Nombre', 'field': 'nombre', 'align': 'left', 'sortable': True, 'style': 'flex: 1; min-width: 150px;'},
+                    {'name': 'tipo', 'label': 'Tipo', 'field': 'tipo', 'align': 'left', 'sortable': True, 'style': 'min-width: 80px;'},
+                    {'name': 'fecha', 'label': 'Fecha', 'field': 'fecha', 'align': 'left', 'sortable': True, 'style': 'min-width: 100px;'},
+                    {'name': 'acciones', 'label': 'Acciones', 'field': 'acciones', 'align': 'center', 'sortable': False, 'style': 'min-width: 80px;'},
+                ]
 
                 for etype in ("claim", "invoice", "group_claim"):
                     docs_in_cat = categories[etype]
@@ -369,40 +358,38 @@ def register_documentos_page() -> None:
                         text=f"{cat_label} ({len(docs_in_cat)})",
                         icon=_CATEGORY_ICONS[etype],
                     ).classes("w-full bg-gray-800 rounded-lg mb-2"):
-                        for doc in sorted(
+                        # Prepare table data for this category
+                        table_rows = []
+                        sorted_cat_docs = sorted(
                             docs_in_cat,
                             key=lambda d: d.created_at,
                             reverse=True,
-                        ):
-                            is_selected = (
-                                selected_doc_id["id"] == doc.document_id
-                            )
-                            row_cls = (
-                                "items-center gap-2 py-2 px-3 "
-                                "cursor-pointer rounded "
-                                f"{'bg-blue-900' if is_selected else 'hover:bg-gray-700'}"
-                            )
-                            with ui.row().classes(row_cls).on(
-                                "click",
-                                lambda d=doc: _select_document(
-                                    d.document_id
-                                ),
-                            ):
-                                ui.label(doc.name).classes(
-                                    "text-sm flex-1 truncate"
-                                )
-                                ui.label(doc.type).classes(
-                                    "text-xs text-gray-400 w-20"
-                                )
-                                ui.label(
-                                    doc.created_at.strftime("%d/%m/%Y")
-                                ).classes("text-xs text-gray-400 w-24")
-                                ui.button(
-                                    icon="download",
-                                    on_click=lambda did=doc.document_id: _download(
-                                        did
-                                    ),
-                                ).props("flat dense round size=sm")
+                        )
+                        for doc in sorted_cat_docs:
+                            table_rows.append({
+                                'id': str(doc.document_id),
+                                'document_id': doc.document_id,
+                                'nombre': doc.name,
+                                'tipo': doc.type,
+                                'fecha': doc.created_at.strftime("%d/%m/%Y"),
+                                'is_selected': selected_doc_id["id"] == doc.document_id,
+                            })
+
+                        if table_rows:
+                            table = ui.table(columns=cat_columns, rows=table_rows, row_key='id').classes('w-full')
+                            
+                            # Add action icons slot
+                            table.add_slot('body-cell-acciones', '''
+                                <q-td :props="props" class="text-center">
+                                    <q-btn icon="download" @click="$parent.$emit('download', props.row)" flat dense color="blue" size="sm" />
+                                </q-td>
+                            ''')
+                            
+                            # Register handlers
+                            def _handle_download_cat(row: dict) -> None:
+                                _download(row.get('document_id'))
+                            
+                            table.on('download', lambda e: _handle_download_cat(e.args))
 
             # ── Initial render ────────────────────────────────────────────────
             _render_all()
