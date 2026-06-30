@@ -279,41 +279,52 @@ def _render_payments_section(container: Container, claim_id: UUID) -> None:
             )
             return
 
-        with ui.row().classes(
-            "items-center gap-2 py-1 border-b border-gray-600 font-bold"
-        ):
-            for label, width in [
-                ("Monto", "w-28"),
-                ("Fecha", "w-28"),
-                ("Pagador", "w-24"),
-                ("Benef.", "w-24"),
-                ("Activo", "w-16"),
-                ("", "w-20"),
-            ]:
-                ui.label(label).classes(f"text-xs {width}")
+        # Define columns for payments table
+        payment_columns = [
+            {'name': 'monto', 'label': 'Monto', 'field': 'monto', 'align': 'right', 'sortable': True, 'style': 'min-width: 120px;'},
+            {'name': 'fecha', 'label': 'Fecha', 'field': 'fecha', 'align': 'left', 'sortable': True, 'style': 'min-width: 120px;'},
+            {'name': 'pagador', 'label': 'Pagador', 'field': 'pagador', 'align': 'left', 'sortable': True, 'style': 'min-width: 120px;'},
+            {'name': 'beneficiario', 'label': 'Benef.', 'field': 'beneficiario', 'align': 'left', 'sortable': True, 'style': 'min-width: 120px;'},
+            {'name': 'activo', 'label': 'Activo', 'field': 'activo', 'align': 'center', 'sortable': True, 'style': 'min-width: 80px;'},
+            {'name': 'acciones', 'label': 'Acciones', 'field': 'acciones', 'align': 'center', 'sortable': False, 'style': 'min-width: 100px;'},
+        ]
 
+        # Prepare table data
+        payment_rows = []
         for pmt in sorted(payments, key=lambda p: p.created_date, reverse=True):
             payer_name = agent_options.get(str(pmt.payer_id), "—")
             payee_name = agent_options.get(str(pmt.payee_id), "—")
-            with ui.row().classes("items-center gap-2 py-1 hover:bg-gray-800"):
-                ui.label(f"${pmt.amount:,.2f}").classes("text-sm w-28 text-right")
-                ui.label(pmt.created_date.strftime("%Y-%m-%d")).classes(
-                    "text-sm w-28 text-gray-400"
-                )
-                ui.label(payer_name).classes("text-sm w-24 truncate")
-                ui.label(payee_name).classes("text-sm w-24 truncate")
-                ui.label("Sí" if pmt.active else "No").classes("text-sm w-16")
-                with ui.row().classes("gap-1 w-20"):
-                    ui.button(
-                        icon="edit",
-                        on_click=lambda pid=pmt.payment_id: _open_dialog(pid),
-                    ).props("flat dense round size=sm")
-                    ui.button(
-                        icon="toggle_off" if pmt.active else "toggle_on",
-                        on_click=lambda pid=pmt.payment_id: _handle_inactivate(pid),
-                    ).props(
-                        f"flat dense round size=sm color={'grey' if not pmt.active else 'orange-7'}"
-                    )
+            payment_rows.append({
+                'id': str(pmt.payment_id),
+                'payment_id': pmt.payment_id,
+                'monto': f"${pmt.amount:,.2f}",
+                'fecha': pmt.created_date.strftime("%Y-%m-%d"),
+                'pagador': payer_name,
+                'beneficiario': payee_name,
+                'activo': "Sí" if pmt.active else "No",
+                'is_active': pmt.active,
+            })
+
+        # Create table
+        table = ui.table(columns=payment_columns, rows=payment_rows, row_key='id').classes('w-full')
+
+        # Add action icons slot
+        table.add_slot('body-cell-acciones', '''
+            <q-td :props="props" class="text-center gap-1">
+                <q-btn icon="edit" @click="$parent.$emit('edit', props.row)" flat dense color="blue" size="sm" />
+                <q-btn :icon="props.row.is_active ? 'toggle_off' : 'toggle_on'" @click="$parent.$emit('toggle', props.row)" flat dense :color="props.row.is_active ? 'orange-7' : 'grey'" size="sm" />
+            </q-td>
+        ''')
+
+        # Register handlers
+        def _handle_edit(row: dict) -> None:
+            _open_dialog(row.get('payment_id'))
+
+        def _handle_toggle(row: dict) -> None:
+            _handle_inactivate(row.get('payment_id'))
+
+        table.on('edit', lambda e: _handle_edit(e.args))
+        table.on('toggle', lambda e: _handle_toggle(e.args))
 
     _refresh_pagos()
 
@@ -478,36 +489,47 @@ def _render_documents_section(claim_id: UUID) -> None:
             )
             return
 
-        with ui.row().classes(
-            "items-center gap-2 py-1 border-b border-gray-600 font-bold mt-1"
-        ):
-            ui.label("Nombre").classes("text-xs w-44")
-            ui.label("Tipo").classes("text-xs w-20")
-            ui.label("Tamaño").classes("text-xs w-20 text-right")
-            ui.label("Fecha").classes("text-xs w-28")
-            ui.label("").classes("w-24")
+        # Define columns for documents table
+        doc_columns = [
+            {'name': 'nombre', 'label': 'Nombre', 'field': 'nombre', 'align': 'left', 'sortable': True, 'style': 'flex: 1; min-width: 150px;'},
+            {'name': 'tipo', 'label': 'Tipo', 'field': 'tipo', 'align': 'left', 'sortable': True, 'style': 'min-width: 100px;'},
+            {'name': 'tamaño', 'label': 'Tamaño', 'field': 'tamaño', 'align': 'right', 'sortable': True, 'style': 'min-width: 100px;'},
+            {'name': 'fecha', 'label': 'Fecha', 'field': 'fecha', 'align': 'left', 'sortable': True, 'style': 'min-width: 100px;'},
+            {'name': 'acciones', 'label': 'Acciones', 'field': 'acciones', 'align': 'center', 'sortable': False, 'style': 'min-width: 100px;'},
+        ]
 
+        # Prepare table data
+        doc_rows = []
         for doc in sorted(docs, key=lambda d: d.created_at, reverse=True):
-            with ui.row().classes("items-center gap-2 py-1 hover:bg-gray-800"):
-                ui.label(doc.name).classes("text-sm w-44 truncate")
-                ui.label(doc.type).classes("text-sm w-20")
-                ui.label(_format_size(doc.size)).classes(
-                    "text-sm w-20 text-right text-gray-400"
-                )
-                ui.label(doc.created_at.strftime("%Y-%m-%d")).classes(
-                    "text-sm w-28 text-gray-400"
-                )
-                with ui.row().classes("gap-1 w-24"):
-                    ui.button(
-                        icon="download",
-                        on_click=lambda did=doc.document_id: ui.navigate.to(
-                            f"/api/documents/{did}/file"
-                        ),
-                    ).props("flat dense round size=sm")
-                    ui.button(
-                        icon="link_off",
-                        on_click=lambda did=doc.document_id: _desasociar_doc(did),
-                    ).props("flat dense round size=sm color=orange-7")
+            doc_rows.append({
+                'id': str(doc.document_id),
+                'document_id': doc.document_id,
+                'nombre': doc.name,
+                'tipo': doc.type,
+                'tamaño': _format_size(doc.size),
+                'fecha': doc.created_at.strftime("%Y-%m-%d"),
+            })
+
+        # Create table
+        table = ui.table(columns=doc_columns, rows=doc_rows, row_key='id').classes('w-full mt-1')
+
+        # Add action icons slot
+        table.add_slot('body-cell-acciones', '''
+            <q-td :props="props" class="text-center gap-1">
+                <q-btn icon="download" @click="$parent.$emit('download', props.row)" flat dense color="blue" size="sm" />
+                <q-btn icon="link_off" @click="$parent.$emit('unlink', props.row)" flat dense color="orange-7" size="sm" />
+            </q-td>
+        ''')
+
+        # Register handlers
+        def _handle_download(row: dict) -> None:
+            ui.navigate.to(f"/api/documents/{row.get('document_id')}/file")
+
+        def _handle_unlink(row: dict) -> None:
+            _desasociar_doc(row.get('document_id'))
+
+        table.on('download', lambda e: _handle_download(e.args))
+        table.on('unlink', lambda e: _handle_unlink(e.args))
 
     _refresh_docs()
 

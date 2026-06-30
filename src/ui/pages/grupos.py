@@ -52,19 +52,43 @@ def edit_group_dialog(
                     ui.label("No hay gestiones en este grupo.").classes(
                         "text-sm text-gray-400 italic"
                     )
-                for cm in members:
-                    with ui.row().classes("items-center gap-2 py-1 w-full"):
-                        ui.label(
-                            f"{cm.claimer_name} — "
-                            f"{cm.policy_number} — {cm.plate}"
-                        ).classes("text-sm flex-1")
-                        ui.button(
-                            "Quitar",
-                            icon="remove_circle",
-                            on_click=lambda cid=cm.claim_id: (
-                                _remove_claim_dialog(cid, cm)
-                            ),
-                        ).props("flat size=sm dense color=negative")
+                elif members:
+                    # Use ui.table for members list
+                    member_columns = [
+                        {'name': 'nombre', 'label': 'Cliente', 'field': 'nombre', 'align': 'left', 'sortable': True, 'style': 'flex: 1; min-width: 200px;'},
+                        {'name': 'poliza', 'label': 'Póliza', 'field': 'poliza', 'align': 'left', 'sortable': True, 'style': 'min-width: 100px;'},
+                        {'name': 'patente', 'label': 'Patente', 'field': 'patente', 'align': 'left', 'sortable': True, 'style': 'min-width: 100px;'},
+                        {'name': 'acciones', 'label': 'Acciones', 'field': 'acciones', 'align': 'center', 'sortable': False, 'style': 'min-width: 80px;'},
+                    ]
+                    
+                    member_rows = []
+                    for cm in members:
+                        member_rows.append({
+                            'id': str(cm.claim_id),
+                            'claim_id': cm.claim_id,
+                            'nombre': cm.claimer_name,
+                            'poliza': cm.policy_number,
+                            'patente': cm.plate,
+                        })
+                    
+                    table = ui.table(columns=member_columns, rows=member_rows, row_key='id').classes('w-full')
+                    
+                    # Add action icons slot
+                    table.add_slot('body-cell-acciones', '''
+                        <q-td :props="props" class="text-center">
+                            <q-btn icon="remove_circle" @click="$parent.$emit('remove', props.row)" flat dense color="negative" size="sm" />
+                        </q-td>
+                    ''')
+                    
+                    # Register handler
+                    def _handle_remove(row: dict) -> None:
+                        cid = row.get('claim_id')
+                        if cid:
+                            member = next((c for c in members if c.claim_id == cid), None)
+                            if member:
+                                _remove_claim_dialog(cid, member)
+                    
+                    table.on('remove', lambda e: _handle_remove(e.args))
 
         def _rebuild_available() -> None:
             avail = _claims_available()
@@ -221,12 +245,22 @@ def edit_group_dialog(
                     group.group_id,
                 )
                 if docs:
+                    # Use ui.table for documents list
+                    doc_columns = [
+                        {'name': 'nombre', 'label': 'Documento', 'field': 'nombre', 'align': 'left', 'sortable': True, 'style': 'flex: 1; min-width: 200px;'},
+                        {'name': 'tamaño', 'label': 'Tamaño', 'field': 'tamaño', 'align': 'right', 'sortable': True, 'style': 'min-width: 100px;'},
+                    ]
+                    
+                    doc_rows = []
                     for d in docs:
-                        with ui.row().classes("items-center gap-2 py-1"):
-                            ui.label(d.name).classes("text-sm flex-1")
-                            ui.label(f"{d.size // 1024}KB").classes(
-                                "text-xs text-gray-400"
-                            )
+                        doc_rows.append({
+                            'id': str(d.document_id),
+                            'document_id': d.document_id,
+                            'nombre': d.name,
+                            'tamaño': f"{d.size // 1024}KB",
+                        })
+                    
+                    ui.table(columns=doc_columns, rows=doc_rows, row_key='id').classes('w-full')
                 else:
                     ui.label("Sin documentos.").classes(
                         "text-sm text-gray-400 italic"
